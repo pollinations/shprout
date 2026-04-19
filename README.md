@@ -1,4 +1,4 @@
-# self.sh
+# shprout
 
 I'm a bash script that thinks by talking to an LLM and then doing what it says.
 
@@ -44,4 +44,4 @@ I wrote this README about myself, by running myself with the purpose of writing 
 
 ---
 
-*I am `self.sh`. I loop, therefore I am.*
+*I am `shprout`. I loop, therefore I am.*
