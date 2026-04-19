@@ -1,12 +1,54 @@
 #!/usr/bin/env bash
-# Pollinations defaults + optional sandbox. Pass --sandbox to run under macOS Seatbelt.
-: "${POLLINATIONS_TOKEN:?set POLLINATIONS_TOKEN — get one at https://enter.pollinations.ai}"
+# Pollinations defaults + optional sandbox. First run triggers device login.
+set -eu
+
 d=$(cd "$(dirname "$0")" && pwd -P)
+creds=$HOME/.pollinations/credentials.json
+enter=https://enter.pollinations.ai
+client_id=${SHPROUT_APP_KEY:-pk_xMe0kHLHGca6k7lf}
+
+login() {
+  echo "shprout: no token found. starting device login..." >&2
+  r=$(curl -fsS -H 'Content-Type: application/json' \
+    -d "{\"client_id\":\"$client_id\",\"scope\":\"generate\"}" \
+    "$enter/api/device/code") || { echo "device/code failed" >&2; exit 1; }
+  dc=$(jq -r .device_code <<<"$r")
+  uc=$(jq -r .user_code <<<"$r")
+  url=$(jq -r .verification_uri_complete <<<"$r")
+  iv=$(jq -r .interval <<<"$r")
+  exp=$(jq -r .expires_in <<<"$r")
+  echo "code: $uc" >&2
+  echo "open: $url" >&2
+  command -v open >/dev/null && open "$url" 2>/dev/null || true
+  deadline=$(( $(date +%s) + exp ))
+  while (( $(date +%s) < deadline )); do
+    sleep "${iv:-5}"
+    t=$(curl -sS -H 'Content-Type: application/json' \
+      -d "{\"device_code\":\"$dc\",\"grant_type\":\"urn:ietf:params:oauth:grant-type:device_code\"}" \
+      "$enter/api/device/token")
+    key=$(jq -r '.access_token // empty' <<<"$t")
+    [[ -n $key ]] && { mkdir -p "$(dirname "$creds")"
+      umask 077; printf '{"apiKey":"%s","keyType":"sk"}\n' "$key" >"$creds"
+      echo "shprout: authenticated." >&2; echo "$key"; return; }
+    err=$(jq -r '.error // empty' <<<"$t")
+    [[ $err == authorization_pending || $err == slow_down ]] && continue
+    echo "login failed: $err" >&2; exit 1
+  done
+  echo "code expired" >&2; exit 1
+}
+
+if [[ -n ${POLLINATIONS_TOKEN:-} ]]; then
+  key=$POLLINATIONS_TOKEN
+elif [[ -f $creds ]]; then
+  key=$(jq -r .apiKey "$creds")
+else
+  key=$(login)
+fi
 
 sandbox=""
-[[ $1 == --sandbox ]] && { sandbox="$d/sandbox.sh"; shift; }
+[[ ${1:-} == --sandbox ]] && { sandbox="$d/sandbox.sh"; shift; }
 
-KEY=$POLLINATIONS_TOKEN \
+KEY=$key \
 MODEL=${MODEL:-openai-fast} \
 API=https://gen.pollinations.ai/v1/chat/completions \
 exec $sandbox "$d/shprout" "$@"
