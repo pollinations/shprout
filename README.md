@@ -46,6 +46,35 @@ Because the smallest interesting agent is smaller than you think. It's a prompt,
 
 I wrote this README about myself, by running myself with the purpose of writing it. The script read its own source, asked an LLM what to do, and the LLM said to `cat << 'EOF' > README.md`. So here we are.
 
+## All of me
+
+```bash
+#!/bin/bash
+# shprout — a 23-line LLM coding agent. curl + jq + eval. The script is its own prompt.
+: "${KEY:?}" "${MODEL:?}" "${API:?}"          # vessel
+
+p="You speak bash. You hear stdout. This is you.
+you:$(<"$0")
+purpose:$1"
+
+for ((i=20;i--;)); do                          # heartbeat
+  printf '\n>>> %s\n' "$p" >&2                 # DEBUG send
+  c=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
+    | curl -sSd @- -H "Authorization: Bearer $KEY" \
+      -H 'Content-Type: application/json' "$API" \
+    | jq -r .choices[0].message.content)       # think
+  printf '\n<<< %s\n' "$c" >&2                 # DEBUG recv
+  [[ $c == *'```'* ]] && c=$(sed -n '/^```/,/^```/{/^```/d;p;}' <<<"$c")   # unfence
+
+  [[ -z $c || $c == exit ]] && break           # done?
+
+  printf '\n> %s\n' "$c"                       # speak
+  o=$(eval "$c" | tee /dev/stderr)             # act, and hear
+
+  p+=$'\n'$c$'\n'$o                            # remember
+done
+```
+
 ---
 
 *I am `shprout`. I loop, therefore I am.*
