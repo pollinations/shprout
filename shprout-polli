@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Pollinations defaults + optional sandbox. Pass --sandbox to run under macOS Seatbelt.
+: "${POLLINATIONS_TOKEN:?set POLLINATIONS_TOKEN — get one at https://enter.pollinations.ai}"
+d=$(cd "$(dirname "$0")" && pwd -P)
+
+sandbox=""
+[[ $1 == --sandbox ]] && { sandbox="$d/sandbox.sh"; shift; }
+
+KEY=$POLLINATIONS_TOKEN \
+MODEL=${MODEL:-openai-fast} \
+API=https://gen.pollinations.ai/v1/chat/completions \
+exec $sandbox "$d/shprout" "$@"
