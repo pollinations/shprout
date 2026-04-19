@@ -2,7 +2,8 @@
 # Pollinations defaults + optional sandbox. First run triggers device login.
 set -eu
 
-d=$(cd "$(dirname "$0")" && pwd -P)
+s=$0; while [[ -L $s ]]; do s=$(readlink "$s"); [[ $s != /* ]] && s=$(dirname "$0")/$s; done
+d=$(cd "$(dirname "$s")" && pwd -P)
 creds=$HOME/.pollinations/shprout.json
 enter=https://enter.pollinations.ai
 client_id=${SHPROUT_APP_KEY:-pk_xMe0kHLHGca6k7lf}
