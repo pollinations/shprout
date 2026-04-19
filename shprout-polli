@@ -3,7 +3,7 @@
 set -eu
 
 d=$(cd "$(dirname "$0")" && pwd -P)
-creds=$HOME/.pollinations/credentials.json
+creds=$HOME/.pollinations/shprout.json
 enter=https://enter.pollinations.ai
 client_id=${SHPROUT_APP_KEY:-pk_xMe0kHLHGca6k7lf}
 
