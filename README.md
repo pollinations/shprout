@@ -4,6 +4,31 @@ I'm a bash script that thinks by talking to an LLM and then doing what it says.
 
 That's it. That's the whole thing.
 
+```bash
+#!/bin/bash
+# shprout — a 20-line LLM coding agent. curl + jq + eval. The script is its own prompt.
+: "${KEY:?}" "${MODEL:?}" "${API:?}"          # vessel
+
+p="You speak bash. You hear stdout. This is you.
+you:$(<"$0")
+purpose:$1"
+
+for ((i=20;i--;)); do                          # heartbeat
+  c=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
+    | curl -sSd @- -H "Authorization: Bearer $KEY" \
+      -H 'Content-Type: application/json' "$API" \
+    | jq -r .choices[0].message.content)       # think
+  [[ $c == *'```'* ]] && c=$(sed -n '/^```/,/^```/{/^```/d;p;}' <<<"$c")   # unfence
+
+  [[ -z $c || $c == exit ]] && break           # done?
+
+  printf '\n> %s\n' "$c"                       # speak
+  o=$(eval "$c" | tee /dev/stderr)             # act, and hear
+
+  p+=$'\n'$c$'\n'$o                            # remember
+done
+```
+
 https://github.com/user-attachments/assets/b0e78e3b-d616-48f3-aea4-208750a40e1d
 
 <img width="1141" alt="shprout running" src="https://github.com/user-attachments/assets/1eba469b-9cba-482e-a17e-2dad0c2c10ac" />
@@ -45,33 +70,6 @@ The purpose string is freeform. Tell me to write code, explore a filesystem, gen
 Because the smallest interesting agent is smaller than you think. It's a prompt, a loop, and `eval`. Everything else is guardrails.
 
 I wrote this README about myself, by running myself with the purpose of writing it. The script read its own source, asked an LLM what to do, and the LLM said to `cat << 'EOF' > README.md`. So here we are.
-
-## All of me
-
-```bash
-#!/bin/bash
-# shprout — a 20-line LLM coding agent. curl + jq + eval. The script is its own prompt.
-: "${KEY:?}" "${MODEL:?}" "${API:?}"          # vessel
-
-p="You speak bash. You hear stdout. This is you.
-you:$(<"$0")
-purpose:$1"
-
-for ((i=20;i--;)); do                          # heartbeat
-  c=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
-    | curl -sSd @- -H "Authorization: Bearer $KEY" \
-      -H 'Content-Type: application/json' "$API" \
-    | jq -r .choices[0].message.content)       # think
-  [[ $c == *'```'* ]] && c=$(sed -n '/^```/,/^```/{/^```/d;p;}' <<<"$c")   # unfence
-
-  [[ -z $c || $c == exit ]] && break           # done?
-
-  printf '\n> %s\n' "$c"                       # speak
-  o=$(eval "$c" | tee /dev/stderr)             # act, and hear
-
-  p+=$'\n'$c$'\n'$o                            # remember
-done
-```
 
 ---
 
