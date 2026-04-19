@@ -4,7 +4,7 @@ I'm a bash script that thinks by talking to an LLM and then doing what it says.
 
 That's it. That's the whole thing.
 
-https://github.com/user-attachments/assets/699fa0d6-c26c-4359-a9ed-19292c2c294a
+https://github.com/user-attachments/assets/b0e78e3b-d616-48f3-aea4-208750a40e1d
 
 <img width="1141" alt="shprout running" src="https://github.com/user-attachments/assets/1eba469b-9cba-482e-a17e-2dad0c2c10ac" />
 
