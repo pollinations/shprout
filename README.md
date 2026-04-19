@@ -1,77 +1,52 @@
 # shprout
 
-A 23-line LLM coding agent.
+A 23-line LLM coding agent. `curl` + `jq` + `eval`. The script is its own prompt.
 
-- **Pure bash.** `curl` + `jq` + `eval`. No framework, no dependencies.
-- **Self-referential.** The script embeds its own source as prompt context — no separate PROMPT file. The agent reads the loop it's in.
-- **Provider-agnostic.** Works with any OpenAI-compatible endpoint.
-- **Sandboxable.** Optional macOS Seatbelt wrapper restricts writes to `/tmp` and cwd, denies reads of `~/.ssh` / `~/.aws` / keychains.
-
-## Install
-
-```bash
-git clone https://github.com/pollinations/shprout.git ~/.shprout
-ln -s ~/.shprout/shprout-polli ~/.local/bin/shprout
-export POLLINATIONS_TOKEN=sk_...       # https://enter.pollinations.ai
-```
-
-## Usage
-
-```bash
-shprout "draw a pelican on a bicycle as SVG, save to output.svg"
-```
-
-Sandboxed:
-
-```bash
-shprout --sandbox "your goal"
-```
-
-With a different model:
-
-```bash
-MODEL=claude-large shprout "refactor this directory to use TypeScript"
-```
-
-Generic (any OpenAI-compatible endpoint):
-
-```bash
-KEY=sk_... \
-MODEL=gpt-4o \
-API=https://api.openai.com/v1/chat/completions \
-  ./shprout "your goal"
-```
-
-## The directive
-
-The script's only non-source prose:
-
-> **You speak bash. You hear stdout. This is you.**
-
-Anatomical, not mechanical. The model reads `shprout` and infers the rest: its reply gets `eval`'d, stdout loops back, `exit` ends the session. No rules file, no tool schema.
+shprout sends itself as context to an LLM, executes whatever bash the model returns, feeds stdout back, and loops — up to 20 turns or until the model says `exit`.
 
 ## How it works
 
-```
-┌─ prompt = directive + own source + goal
-│
-├─ POST to chat completions
-├─ strip markdown fences from reply
-├─ eval reply as bash, capture stdout
-├─ append reply + stdout to prompt
-└─ repeat up to 20 turns, or until model says `exit`
-```
+1. The script reads its own source and your purpose string into a prompt
+2. It sends the prompt to any OpenAI-compatible chat API
+3. It extracts bash from the response (unfencing markdown code blocks)
+4. It `eval`s the bash and captures stdout
+5. It appends the command and output to the prompt, then loops
+
+## Requirements
+
+- `bash`, `curl`, `jq`
+
+## Usage
+
+### Direct (any OpenAI-compatible API)
+
+    export KEY="your-api-key"
+    export MODEL="gpt-4o"          # any OpenAI-compatible model
+    export API="https://api.openai.com/v1/chat/completions"
+
+    ./shprout "create a python hello world script"
+
+### Via Pollinations
+
+    export POLLINATIONS_TOKEN="your-token"  # https://enter.pollinations.ai
+
+    ./shprout-polli "build a fibonacci function in python and test it"
+
+With macOS Seatbelt sandboxing:
+
+    ./shprout-polli --sandbox "list all .txt files"
 
 ## Files
 
-- `shprout` — the agent. 23 lines. Zero Pollinations knowledge.
-- `shprout-polli` — wrapper with Pollinations defaults; pass `--sandbox` to wrap with Seatbelt.
-- `sandbox.sh` + `sandbox.sb` — macOS Seatbelt wrapper.
+| File | Description |
+|------|-------------|
+| `shprout` | The agent — 23 lines of bash |
+| `shprout-polli` | Convenience wrapper for the Pollinations API |
 
-## Examples
+## ⚠️ Warning
 
-See `examples/pelican-bicycle/`: `claude-large`, 15 turns, 4931-byte SVG output.
+This script `eval`s LLM output directly. Use the `--sandbox` flag or run in a container if you value your filesystem.
 
 ## License
 
-MIT
+Do what you want with it. It's 23 lines.
