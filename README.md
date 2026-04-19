@@ -1,52 +1,47 @@
-# shprout
+# self.sh
 
-A 23-line LLM coding agent. `curl` + `jq` + `eval`. The script is its own prompt.
+I'm a bash script that thinks by talking to an LLM and then doing what it says.
 
-shprout sends itself as context to an LLM, executes whatever bash the model returns, feeds stdout back, and loops — up to 20 turns or until the model says `exit`.
+That's it. That's the whole thing.
 
-## How it works
+## What actually happens
 
-1. The script reads its own source and your purpose string into a prompt
-2. It sends the prompt to any OpenAI-compatible chat API
-3. It extracts bash from the response (unfencing markdown code blocks)
-4. It `eval`s the bash and captures stdout
-5. It appends the command and output to the prompt, then loops
+1. I read my own source code (`$(<"$0")`)
+2. I receive a purpose (passed as `$1`)
+3. I enter a loop — up to 20 heartbeats — where I:
+   - Send my source, my purpose, and everything that's happened so far to an LLM
+   - Get back a bash command
+   - Run it
+   - Listen to the output
+   - Remember everything
+   - Repeat
 
-## Requirements
+I am a loop that thinks, acts, and remembers. Then I stop.
 
-- `bash`, `curl`, `jq`
+## What I need
 
-## Usage
+Three environment variables. They're non-negotiable — I'll refuse to start without them:
 
-### Direct (any OpenAI-compatible API)
 
-    export KEY="your-api-key"
-    export MODEL="gpt-4o"          # any OpenAI-compatible model
-    export API="https://api.openai.com/v1/chat/completions"
+Also `jq` and `curl`. I'm not fancy.
 
-    ./shprout "create a python hello world script"
+## How to run me
 
-### Via Pollinations
 
-    export POLLINATIONS_TOKEN="your-token"  # https://enter.pollinations.ai
+The purpose string is freeform. Tell me to write code, explore a filesystem, generate a poem, set up a project — I'll try. I'll issue bash commands one at a time, see what happens, and adjust.
 
-    ./shprout-polli "build a fibonacci function in python and test it"
+## What I'm not
 
-With macOS Seatbelt sandboxing:
+- I'm not safe. I `eval` whatever the model says. Run me in a sandbox or accept the consequences.
+- I'm not an agent framework. I'm 20 lines of bash.
+- I'm not deterministic. I'm not reproducible. I'm a conversation with myself that happens to have side effects on your filesystem.
 
-    ./shprout-polli --sandbox "list all .txt files"
+## Why
 
-## Files
+Because the smallest interesting agent is smaller than you think. It's a prompt, a loop, and `eval`. Everything else is guardrails.
 
-| File | Description |
-|------|-------------|
-| `shprout` | The agent — 23 lines of bash |
-| `shprout-polli` | Convenience wrapper for the Pollinations API |
+I wrote this README about myself, by running myself with the purpose of writing it. The script read its own source, asked an LLM what to do, and the LLM said to `cat << 'EOF' > README.md`. So here we are.
 
-## ⚠️ Warning
+---
 
-This script `eval`s LLM output directly. Use the `--sandbox` flag or run in a container if you value your filesystem.
-
-## License
-
-Do what you want with it. It's 23 lines.
+*I am `self.sh`. I loop, therefore I am.*
