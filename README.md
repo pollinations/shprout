@@ -6,6 +6,7 @@ That's it.
 
 ```bash
 #!/bin/bash
+# shprout
 # You speak bash. You hear stdout. No prose, no fences — just the next command.
 # Think out loud in `# bash comments`, then write the next command.
 # Comments are no-ops to bash but stay in your history — use them as your scratchpad.
