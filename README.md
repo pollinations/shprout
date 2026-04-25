@@ -11,28 +11,23 @@ That's it.
 # Think out loud in `# bash comments`, then write the next command.
 : "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
-p="#you
-$(<"$0")
-
-#purpose
-
-$1
-
+p="<you>$(<"$0")</you>
+<task>$1</task>
 #log
 "
 
-for ((i=20;i--;)); do                          # heartbeat
-  c=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
+for i in {1..20}; do
+  cmd=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
     | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
       -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
-    | jq -r .choices[0].message.content)       # think
+    | jq -r .choices[0].message.content)
 
-  [[ -z $c || $c == exit ]] && break           # done?
+  [[ -z $cmd || $cmd == exit ]] && break
 
-  printf '\n> %s\n' "$c"                       # speak
-  o=$(eval "$c" | tee /dev/stderr)             # act, and hear
+  printf '\n$ %s\n' "$cmd"
+  out=$(eval "$cmd" 2>&1 | tee /dev/stderr)
 
-  p+=$'\n$ '$c$'\n'$o                          # remember
+  p+=$'\n$ '$cmd$'\n'$out
 done
 ```
 
