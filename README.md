@@ -17,7 +17,7 @@ p="<you>$(<"$0")</you>
 "
 
 for i in {1..20}; do
-  cmd=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
+  cmd=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}],stop:[\"\n\$ \"]}" <<<"$p" \
     | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
       -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
     | jq -r .choices[0].message.content)
@@ -27,7 +27,7 @@ for i in {1..20}; do
   printf '\n$ %s\n' "$cmd"
   out=$(eval "$cmd" 2>&1 | tee /dev/stderr)
 
-  p+=$'\n$ '$cmd$'\n'$out
+  p+=$'\n# > '$cmd$'\n'$out
 done
 ```
 
