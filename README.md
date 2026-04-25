@@ -7,13 +7,17 @@ That's it.
 ```bash
 #!/bin/bash
 # shprout — a 20-line LLM coding agent. curl + jq + eval. The script is its own prompt.
-# When you reply: think out loud in `# bash comments`, then write the next command.
+# You speak bash. You hear stdout. No prose, no fences — just the next command.
+# Think out loud in `# bash comments`, then write the next command.
 # Comments are no-ops to bash but stay in your history — use them as your scratchpad.
 : "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
-p="You speak bash. You hear stdout. No prose, no fences — just the next command. This is you.
-you:$(<"$0")
-purpose:$1"
+p="#you
+$(<"$0")
+
+#purpose
+
+$1"
 
 for ((i=20;i--;)); do                          # heartbeat
   c=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
