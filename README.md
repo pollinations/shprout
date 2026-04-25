@@ -16,7 +16,9 @@ $(<"$0")
 
 #purpose
 
-$1"
+$1
+
+#log"
 
 for ((i=20;i--;)); do                          # heartbeat
   c=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
