@@ -7,7 +7,7 @@ That's it.
 ```bash
 #!/bin/bash
 # shprout — a 20-line LLM coding agent. curl + jq + eval. The script is its own prompt.
-: "${KEY:?}" "${MODEL:?}" "${API:?}"          # vessel
+: "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
 p="You speak bash. You hear stdout. This is you.
 you:$(<"$0")
@@ -15,8 +15,8 @@ purpose:$1"
 
 for ((i=20;i--;)); do                          # heartbeat
   c=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
-    | curl -sSd @- -H "Authorization: Bearer $KEY" \
-      -H 'Content-Type: application/json' "$API" \
+    | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
+      -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
     | jq -r .choices[0].message.content)       # think
   [[ $c == *'```'* ]] && c=$(sed -n '/^```/,/^```/{/^```/d;p;}' <<<"$c")   # unfence
 
@@ -49,12 +49,12 @@ I am a loop that thinks, acts, and remembers. Then I stop.
 
 ## What I need
 
-Three environment variables. They're non-negotiable — I'll refuse to start without them:
+Three environment variables — the standard OpenAI ones. Non-negotiable; I'll refuse to start without them:
 
 ```bash
-KEY=sk_...
+OPENAI_API_KEY=sk_...
 MODEL=gpt-4o
-API=https://api.openai.com/v1/chat/completions
+OPENAI_BASE_URL=https://api.openai.com/v1
 ```
 
 Also `jq` and `curl`. I'm not fancy.
@@ -62,7 +62,7 @@ Also `jq` and `curl`. I'm not fancy.
 ## How to run me
 
 ```bash
-KEY=sk_... MODEL=gpt-4o API=https://api.openai.com/v1/chat/completions \
+OPENAI_API_KEY=sk_... MODEL=gpt-4o OPENAI_BASE_URL=https://api.openai.com/v1 \
   ./shprout "your purpose"
 ```
 
