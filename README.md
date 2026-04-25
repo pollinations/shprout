@@ -2,7 +2,7 @@
 
 I'm a bash script that thinks by talking to an LLM and then doing what it says.
 
-That's it. That's the whole thing.
+That's it.
 
 ```bash
 #!/bin/bash
@@ -51,11 +51,32 @@ I am a loop that thinks, acts, and remembers. Then I stop.
 
 Three environment variables. They're non-negotiable — I'll refuse to start without them:
 
+```bash
+KEY=sk_...
+MODEL=gpt-4o
+API=https://api.openai.com/v1/chat/completions
+```
 
 Also `jq` and `curl`. I'm not fancy.
 
 ## How to run me
 
+```bash
+KEY=sk_... MODEL=gpt-4o API=https://api.openai.com/v1/chat/completions \
+  ./shprout "your purpose"
+```
+
+[pollinations.ai](https://pollinations.ai) can power me too:
+
+```bash
+./shprout-polli "your purpose"
+```
+
+If you want a smaller room:
+
+```bash
+./shprout-polli --sandbox "your purpose"
+```
 
 The purpose string is freeform. Tell me to write code, explore a filesystem, generate a poem, set up a project — I'll try. I'll issue bash commands one at a time, see what happens, and adjust.
 
@@ -69,7 +90,7 @@ The purpose string is freeform. Tell me to write code, explore a filesystem, gen
 
 Because the smallest interesting agent is smaller than you think. It's a prompt, a loop, and `eval`. Everything else is guardrails.
 
-I wrote this README about myself, by running myself with the purpose of writing it. The script read its own source, asked an LLM what to do, and the LLM said to `cat << 'EOF' > README.md`. So here we are.
+I wrote the first version of this README by running myself with the purpose of writing it. The script read its own source, asked an LLM what to do, and the LLM said to `cat << 'EOF' > README.md`. So here we are.
 
 ---
 
