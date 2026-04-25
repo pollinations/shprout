@@ -13,30 +13,41 @@ import urllib.error
 POLLI = "https://gen.pollinations.ai/v1"
 _token_path = os.path.expanduser("~/.pollinations/shprout.json")
 POLLI_KEY = json.load(open(_token_path))["apiKey"] if os.path.exists(_token_path) else "x"
-GEN_MODEL = "claude-large"
-JUDGE_MODEL = "openai-large"
+GEN_MODEL = os.environ.get("GEN_MODEL", "claude-large")
+JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "openai-large")
 
 
 def chat(model: str, messages: list, *, temperature: float = 0, timeout: float = 90) -> str:
-    """Direct call to Pollinations OpenAI-compatible chat-completions."""
-    body = json.dumps({
-        "model": model,
-        "messages": messages,
-        "temperature": temperature,
-    }).encode()
-    req = urllib.request.Request(
-        f"{POLLI}/chat/completions",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {POLLI_KEY}",
-            "Content-Type": "application/json",
-            "User-Agent": "shprout-compress/0.1",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        data = json.loads(r.read())
-    return data["choices"][0]["message"]["content"] or ""
+    """Direct call to Pollinations OpenAI-compatible chat-completions.
+
+    Some reasoning models (e.g. claude-opus-4.7) reject `temperature` with HTTP
+    400 "temperature is deprecated". Retry once without it on that signal.
+    """
+    def _post(payload: dict) -> str:
+        req = urllib.request.Request(
+            f"{POLLI}/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={
+                "Authorization": f"Bearer {POLLI_KEY}",
+                "Content-Type": "application/json",
+                "User-Agent": "shprout-compress/0.1",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.loads(r.read())
+        return data["choices"][0]["message"]["content"] or ""
+
+    payload = {"model": model, "messages": messages, "temperature": temperature}
+    try:
+        return _post(payload)
+    except urllib.error.HTTPError as e:
+        if e.code == 400:
+            body = e.read().decode(errors="replace")
+            if "temperature" in body and "deprecated" in body:
+                payload.pop("temperature", None)
+                return _post(payload)
+        raise
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHPROUT_PATH = os.path.join(REPO_ROOT, "shprout")

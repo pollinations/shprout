@@ -1,27 +1,31 @@
-"""Render candidates.jsonl as an HTML dashboard via the `show` skill.
+"""Render candidates*.jsonl as an HTML dashboard via the `show` skill.
 
-Sorts candidates by length (ascending) within score tier, marks Pareto-optimal
-points, shows the prompt text inline, and lets you click to expand the sample.
+Loads ALL candidates-*.jsonl snapshots PLUS the live candidates.jsonl, tags
+each row with its source run, and shows a unified Pareto frontier across runs.
 """
 from __future__ import annotations
-import json, html, os, subprocess, sys
+import glob, json, html, os, subprocess, sys
 
-LOG = os.path.join(os.path.dirname(__file__), "candidates.jsonl")
+DIR = os.path.dirname(os.path.abspath(__file__))
 SHOW = os.path.expanduser("~/.claude/skills/show/show.js")
-SHPROUT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "shprout")
+SHPROUT = os.path.join(os.path.dirname(DIR), "shprout")
 SHPROUT_BYTES = os.path.getsize(SHPROUT) if os.path.exists(SHPROUT) else 0
 SHPROUT_LINES = sum(1 for _ in open(SHPROUT)) if os.path.exists(SHPROUT) else 0
 
 
 def load() -> list[dict]:
-    if not os.path.exists(LOG):
-        return []
+    """Load every candidates*.jsonl in the dir, tag each row with its run name."""
+    files = sorted(glob.glob(os.path.join(DIR, "candidates-*.jsonl"))) + \
+            ([os.path.join(DIR, "candidates.jsonl")] if os.path.exists(os.path.join(DIR, "candidates.jsonl")) else [])
     out = []
-    with open(LOG) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try: out.append(json.loads(line))
+    for path in files:
+        run = os.path.basename(path).replace("candidates-", "").replace("candidates", "live").replace(".jsonl", "")
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line: continue
+                try:
+                    r = json.loads(line); r["_run"] = run; out.append(r)
                 except Exception: pass
     return out
 
@@ -89,6 +93,7 @@ def render(rows: list[dict]) -> str:
                   {''.join(f'<span class="inline-block w-6 h-3 rounded-sm {bar_color} opacity-{int(s*10)*10 or 10}" title="sample {idx}: {s}/10"></span>' for idx, s in enumerate(scores))}
                 </div>
                 <div class="text-xs text-slate-400 ml-2">{', '.join(verdicts)}</div>
+                <div class="ml-auto text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded text-slate-500">{html.escape(r.get('_run','?')[:36])}</div>
               </div>
               <div class="relative h-1.5 bg-slate-100 rounded mb-2 overflow-hidden">
                 <div class="absolute inset-y-0 left-0 {bar_color} opacity-70" style="width:{min(100, length/SHPROUT_BYTES*100):.1f}%"></div>
@@ -108,6 +113,27 @@ def render(rows: list[dict]) -> str:
         body_inner = '<div class="text-center text-slate-500 py-12">No candidates yet. Run <code>uv run python search.py</code>.</div>'
     else:
         body_inner = "\n".join(cards)
+
+    # per-run breakdown
+    runs_html = ""
+    if rows:
+        by_run = {}
+        for r in rows:
+            by_run.setdefault(r.get("_run", "?"), []).append(r)
+        run_cards = []
+        for run_name, run_rows in sorted(by_run.items()):
+            best_perfect = min((r["length"] for r in run_rows if r["mean"] == 1.0), default=None)
+            best_passing = min((r["length"] for r in run_rows if r["mean"] >= 0.8), default=None)
+            run_cards.append(f"""
+            <div class="bg-white rounded-lg border border-slate-200 p-3">
+              <div class="font-mono text-xs text-slate-500 truncate">{html.escape(run_name)}</div>
+              <div class="flex gap-4 mt-1 text-sm">
+                <span><span class="text-slate-400">n=</span>{len(run_rows)}</span>
+                <span><span class="text-slate-400">1.00:</span> {(str(best_perfect)+"B") if best_perfect else "—"}</span>
+                <span><span class="text-slate-400">≥0.8:</span> {(str(best_passing)+"B") if best_passing else "—"}</span>
+              </div>
+            </div>""")
+        runs_html = '<div class="space-y-2 mb-6">' + "".join(run_cards) + '</div>'
 
     # summary stats
     if rows:
@@ -151,6 +177,7 @@ def render(rows: list[dict]) -> str:
       <button onclick="fetch('/submit',{{method:'POST',headers:{{'content-type':'application/json'}},body:'{{}}'}});" class="px-3 py-1.5 text-sm bg-slate-200 hover:bg-slate-300 rounded">close</button>
     </div>
     {summary}
+    {runs_html}
     <div class="space-y-2">
       {body_inner}
     </div>

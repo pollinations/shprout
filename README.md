@@ -4,30 +4,51 @@ I'm a bash script that thinks by talking to an LLM and then doing what it says.
 
 That's it.
 
-> **Branch note: `prompt-compression`** — experimental work to find the shortest natural-language prompt that reliably elicits a functionally-equivalent shprout from an LLM. The premise: ship the prompt, not the script. Inspired by Yohei Nakajima's KISS prompt-golf game. See [`compress/`](./compress/) and the section below.
+> **Branch note: `prompt-compression`** — experimental work to find the shortest natural-language prompt that reliably elicits a functionally-equivalent shprout from an LLM. The premise: ship the prompt, not the script. Inspired by Yohei Nakajima's KISS prompt-golf game. See [`compress/`](./compress/).
 
 ## Compression experiment (this branch)
 
 The hypothesis: shprout's 22 lines are themselves a compressed encoding of "self-prompting bash agent." A capable LLM should be able to reproduce them from a much shorter natural-language description. If the prompt is shorter than the script, the prompt becomes the artifact worth shipping.
 
-**Approach (hand-rolled, ~60 lines total):**
+### Headline result
 
-1. **Eval harness** ([`compress/eval.py`](./compress/eval.py)) — three tiers, cheapest first:
-   - **Regex gate** (free, instant): 9 boolean checks for the load-bearing features — `KEY`/`MODEL`/`API` env vars, `$0` self-read, `$1` purpose, bounded loop, `curl`, `jq` content extraction, fence stripping, `eval`, history accumulation.
-   - **LLM judge** (cheap): Claude on Pollinations rates the same 9-point rubric and returns JSON.
-   - **Execution gate** (expensive, finalists only): runs the candidate script under macOS `sandbox-exec` against the real Pollinations endpoint with a trivial purpose, in a throwaway `WORK` dir.
-2. **Search loop** (TODO) — Claude as proposer. At each step: feed it the current prompt, the score, the judge's notes, and a sample of what it generated; ask for a *shorter* prompt that fixes the missed criteria. Reply must be ONLY the new prompt. Track a Pareto frontier of `(length, score, reliability)`.
-3. **Validation** (TODO) — separate stage. Top finalists run end-to-end under the existing sandbox.
+A **117-byte** prompt elicits a functionally-equivalent shprout — **7.32× compression** vs the 856-byte source — and survives multi-judge agreement (openai-large, claude-large, claude-opus-4.7 all rate it ≥ 0.80):
 
-**Why hand-rolled, not GEPA/DSPy:** GEPA's reflection-LM template misinterprets the candidate prompt as instructions to a downstream LLM and produces meta-commentary instead of new prompts. Burned 40 iterations stuck at 0.36. DSPy's lightweight optimizer for this case *is* `dspy.GEPA` — same library, plus wrapper tax. A direct loop fits the problem.
+```
+bash agent:read $0+$1 to p.needs K M A.loop 20:curl $API oai chat,jq .ch[0].msg.cnt,strip ```fcs,eval,app both to p
+```
 
-**Why no fake API server:** A fake endpoint only validates the parts the regex gate already covers. Integration failures (jq path mismatch, fence-stripping eating real code, loop never terminating against varied responses) only surface against a real model. The sandbox + real endpoint + trivial purpose is higher-signal and quicker to build.
+### Approach
 
-**Models:**
-- Generation target: `openai-fast` (small, fast — that's the "decompressor" we want to elicit shprout from).
-- Judge & proposer: `claude` on Pollinations.
+1. **Comparison judge** ([`compress/eval_simple.py`](./compress/eval_simple.py)) — feed the candidate prompt to a generator LLM, then ask a judge LLM whether the resulting bash matches the reference shprout on 9 observable behaviors (env vars, self-read, purpose arg, bounded loop, OpenAI-shape POST, jq content extract, fence strip, eval, history accumulation). Returns 0–10. Pure stdlib — no litellm, no DSPy.
+2. **Leaderboard-aware proposer** ([`compress/search.py`](./compress/search.py)) — at each iteration, show the proposer the top-K candidates with their length, score, missing behaviors, and a snippet of what they generated. Ask for a strictly-shorter prompt. Random parent sampling + temperature 1.0 break the cycling that single-parent rotation produces.
+3. **Multi-judge cross-validation** — re-judge the shortest survivors with all three judges to filter out single-judge bias. The visible 119/122B prompts pass under one judge but fall to 0.70 under another; only 117B is unanimous.
+4. **Model sweep** ([`compress/model_sweep.py`](./compress/model_sweep.py)) — score the champion across 17 generators to find which decompressors are reliable. Tier 1 (perfect): `claude-large`, `claude-opus-4.7`. Tier 2 (≥ 0.85): `grok-large`, `kimi`, `gemini-large`.
 
-**Baseline:** the original 514-char seed prompt scores ~0.90 (regex 6/9, judge 9/9, exec passes). Goal: find prompts under ~150 chars that hold ≥0.7 reliability across multiple decompressions.
+### What we learned
+
+- **Generator quality dominates judge quality.** Swapping the proposer model from `openai-large` to `claude-large` pushed the floor from 195B to 149B without other changes. Cheap models (claude-fast, openai, mistral-large) plateau at 0.40–0.50 — they consistently miss "history accumulation" and stuff the prompt elsewhere.
+- **Leaderboard awareness > single-parent rotation.** Single-parent runs cycled the same 251/312/332-byte variants. Showing 5 candidates side-by-side broke through to 166B at perfect score and 149B at passing.
+- **Single-judge bias is real.** Three of the shortest passing candidates (117/119/122B) all looked equivalent under one judge, but only 117B held under all three. Without cross-judging we'd be claiming 119B; with it we have an honest 117B.
+- **Reasoning models are slow but precise.** `claude-opus-4.7` matches `claude-large` at perfect score; the price is the `temperature` parameter being deprecated (the wrapper retries without it on 400). `kimi-k2.6`/`deepseek-pro`/`qwen-large`/`glm` all hang past 120s on long prompts.
+- **The 9-behavior rubric is the right granularity.** Coarser (single yes/no) loses the "this is missing one specific thing" signal the proposer needs; finer (line-by-line diff) lets cosmetic differences sink the score.
+
+### Files
+
+```
+compress/
+  eval_simple.py          # comparison judge + chat() helper (stdlib only)
+  search.py               # leaderboard-aware proposer + Pareto seeding
+  model_sweep.py          # 17-model decompressor benchmark
+  head_to_head.py         # n×n generator/judge grid for two models
+  visualize.py            # multi-run dashboard via the show skill
+  visualize_crossjudge.py # cross-judge dashboard with min/mean per candidate
+  eval.py                 # earlier 3-tier eval (regex+judge+sandbox-exec)
+  fake_api.py             # stateful fake endpoint (used by eval.py)
+  sandbox.sh / sandbox.sb # macOS sandbox-exec wrapper
+```
+
+Snapshots of each search run are kept locally in `compress/candidates-*.jsonl` (gitignored — regenerable + sometimes echo bearer tokens back from the model).
 
 ---
 
