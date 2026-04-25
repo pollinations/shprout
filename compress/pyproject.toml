@@ -2,7 +2,4 @@
 name = "compress"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = [
-    "gepa>=0.1.1",
-    "litellm>=1.83.13",
-]
+dependencies = []

@@ -14,15 +14,12 @@ import json, os, re, socket, subprocess, tempfile, textwrap, threading, time
 from dataclasses import dataclass
 from http.server import HTTPServer
 
-import litellm
+from eval_simple import chat
 
 from fake_api import make_handler
 
-POLLI = "https://gen.pollinations.ai/v1"
-_token_path = os.path.expanduser("~/.pollinations/shprout.json")
-POLLI_KEY = json.load(open(_token_path))["apiKey"] if os.path.exists(_token_path) else "x"
-GEN_MODEL = "openai/openai-fast"
-JUDGE_MODEL = "openai/claude"
+GEN_MODEL = "openai-fast"
+JUDGE_MODEL = "claude"
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SANDBOX_SH = os.path.join(REPO_ROOT, "sandbox.sh")
@@ -92,15 +89,11 @@ def strip_code_fence(text: str) -> str:
 # ---------- generation ----------
 
 def generate(prompt: str, *, model=GEN_MODEL, temperature=0.7, n=1) -> list[str]:
-    out = []
-    for _ in range(n):
-        r = litellm.completion(
-            model=model, api_base=POLLI, api_key=POLLI_KEY,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-        )
-        out.append(strip_code_fence(r.choices[0].message.content or ""))
-    return out
+    return [
+        strip_code_fence(chat(model, [{"role": "user", "content": prompt}],
+                              temperature=temperature))
+        for _ in range(n)
+    ]
 
 
 # ---------- trace gate (fake_api + sandbox) ----------
@@ -209,12 +202,7 @@ def judge_trace(code: str, trace: list, run_log: str, *, model=JUDGE_MODEL) -> t
         f"=== RUN TRACE ===\n{summary}\n\n"
         f"=== STDOUT/STDERR ===\n{run_log[-1500:]}\n"
     )
-    r = litellm.completion(
-        model=model, api_base=POLLI, api_key=POLLI_KEY,
-        messages=[{"role": "user", "content": msg}],
-        temperature=0,
-    )
-    raw = r.choices[0].message.content or ""
+    raw = chat(model, [{"role": "user", "content": msg}], temperature=0)
     m = re.search(r'\{.*\}', raw, re.DOTALL)
     if not m:
         return 0, f"parse-fail: {raw[:200]}"

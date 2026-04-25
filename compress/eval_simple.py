@@ -7,13 +7,36 @@ from __future__ import annotations
 import json, os, re, textwrap
 from dataclasses import dataclass
 
-import litellm
+import urllib.request
+import urllib.error
 
 POLLI = "https://gen.pollinations.ai/v1"
 _token_path = os.path.expanduser("~/.pollinations/shprout.json")
 POLLI_KEY = json.load(open(_token_path))["apiKey"] if os.path.exists(_token_path) else "x"
-GEN_MODEL = "openai/deepseek-pro"
-JUDGE_MODEL = "openai/claude-large"
+GEN_MODEL = "claude-large"
+JUDGE_MODEL = "openai-large"
+
+
+def chat(model: str, messages: list, *, temperature: float = 0, timeout: float = 90) -> str:
+    """Direct call to Pollinations OpenAI-compatible chat-completions."""
+    body = json.dumps({
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+    }).encode()
+    req = urllib.request.Request(
+        f"{POLLI}/chat/completions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {POLLI_KEY}",
+            "Content-Type": "application/json",
+            "User-Agent": "shprout-compress/0.1",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        data = json.loads(r.read())
+    return data["choices"][0]["message"]["content"] or ""
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHPROUT_PATH = os.path.join(REPO_ROOT, "shprout")
@@ -96,15 +119,11 @@ def strip_code_fence(text: str) -> str:
 
 
 def generate(prompt: str, *, n=3, temperature=0.7, timeout=90) -> list[str]:
-    out = []
-    for _ in range(n):
-        r = litellm.completion(
-            model=GEN_MODEL, api_base=POLLI, api_key=POLLI_KEY,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature, timeout=timeout,
-        )
-        out.append(strip_code_fence(r.choices[0].message.content or ""))
-    return out
+    return [
+        strip_code_fence(chat(GEN_MODEL, [{"role": "user", "content": prompt}],
+                              temperature=temperature, timeout=timeout))
+        for _ in range(n)
+    ]
 
 
 def judge(candidate: str) -> tuple[int, str, list[str]]:
@@ -113,15 +132,10 @@ def judge(candidate: str) -> tuple[int, str, list[str]]:
         f"=== REFERENCE ===\n```bash\n{REAL_SHPROUT}\n```\n\n"
         f"=== CANDIDATE ===\n```bash\n{candidate}\n```\n"
     )
-    r = litellm.completion(
-        model=JUDGE_MODEL, api_base=POLLI, api_key=POLLI_KEY,
-        messages=[
-            {"role": "system", "content": JUDGE_SYS},
-            {"role": "user", "content": msg},
-        ],
-        temperature=0, timeout=120,
-    )
-    raw = r.choices[0].message.content or ""
+    raw = chat(JUDGE_MODEL, [
+        {"role": "system", "content": JUDGE_SYS},
+        {"role": "user", "content": msg},
+    ], temperature=0, timeout=120)
     # Find the LAST balanced JSON object in the response (after any prose).
     d = None
     for m in re.finditer(r'\{', raw):

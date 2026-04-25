@@ -9,11 +9,9 @@ from __future__ import annotations
 import json, os, sys, textwrap, time
 from datetime import datetime
 
-import litellm
+from eval_simple import chat, score_prompt
 
-from eval_simple import POLLI, POLLI_KEY, score_prompt
-
-PROPOSER_MODEL = "openai/claude-large"
+PROPOSER_MODEL = "claude-large"
 LOG = os.path.join(os.path.dirname(__file__), "candidates.jsonl")
 
 SEEDS = [
@@ -52,15 +50,10 @@ def propose(current: str, score: float, sample: str, missing: list) -> str:
         f"output a shorter prompt. target: under {max(20, int(len(current)*0.8))} chars. "
         f"reply with ONLY the new prompt text."
     )
-    r = litellm.completion(
-        model=PROPOSER_MODEL, api_base=POLLI, api_key=POLLI_KEY,
-        messages=[
-            {"role": "system", "content": PROPOSER_SYS},
-            {"role": "user", "content": msg},
-        ],
-        temperature=0.7,
-    )
-    out = (r.choices[0].message.content or "").strip()
+    out = chat(PROPOSER_MODEL, [
+        {"role": "system", "content": PROPOSER_SYS},
+        {"role": "user", "content": msg},
+    ], temperature=0.7).strip()
     # strip wrapping quotes/fences if the model added them
     if out.startswith("```"):
         out = out.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
