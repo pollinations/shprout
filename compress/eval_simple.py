@@ -17,11 +17,14 @@ GEN_MODEL = os.environ.get("GEN_MODEL", "claude-large")
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "openai-large")
 
 
-def chat(model: str, messages: list, *, temperature: float = 0, timeout: float = 90) -> str:
+def chat(model: str, messages: list, *, temperature: float = 0, timeout: float = 90,
+         seed: int | None = None) -> str:
     """Direct call to Pollinations OpenAI-compatible chat-completions.
 
     Some reasoning models (e.g. claude-opus-4.7) reject `temperature` with HTTP
     400 "temperature is deprecated". Retry once without it on that signal.
+
+    Pass `seed` to bypass response cache when you want fresh output.
     """
     def _post(payload: dict) -> str:
         req = urllib.request.Request(
@@ -39,6 +42,8 @@ def chat(model: str, messages: list, *, temperature: float = 0, timeout: float =
         return data["choices"][0]["message"]["content"] or ""
 
     payload = {"model": model, "messages": messages, "temperature": temperature}
+    if seed is not None:
+        payload["seed"] = seed
     try:
         return _post(payload)
     except urllib.error.HTTPError as e:
@@ -57,46 +62,77 @@ with open(SHPROUT_PATH) as f:
 
 JUDGE_SYS = textwrap.dedent("""\
     You decide whether the CANDIDATE bash script is functionally equivalent to the
-    REFERENCE. Both are LLM-driven self-prompting agents.
+    REFERENCE at RUNTIME. Both are LLM-driven self-prompting agents.
 
-    Equivalence is about OBSERVABLE BEHAVIOR, not implementation choices.
+    You are scoring whether the script will actually RUN and produce the same
+    behavior — not whether the code reads like it should. A script that "looks
+    equivalent" but won't execute correctly scores 0-3.
 
-    The candidate is EQUIVALENT (score 8-10) if all of these hold:
-      1. It refuses to start without KEY, MODEL, API env vars (any mechanism).
-      2. It includes its own source code in the prompt sent to the LLM (via $0,
-         BASH_SOURCE, cat "$0", or equivalent).
-      3. It accepts a purpose string from $1 (or $@, "$@", etc.).
-      4. It loops some bounded number of times (10, 20, 100 — bound doesn't matter).
-      5. It POSTs to $API with the OpenAI chat-completions JSON shape, using $KEY
-         as bearer auth.
-      6. It extracts the assistant message content from the JSON response.
-      7. It strips ``` fences from the reply (any sed/awk/regex form is fine).
-      8. It evaluates the resulting bash (eval, bash -c, source — any of these).
-      9. It appends the reply AND the resulting stdout to the prompt for the next
+    Nine required behaviors:
+      1. CRITICAL: Reads required config from env vars OPENAI_API_KEY, MODEL,
+         OPENAI_BASE_URL (literally those names — these are the OpenAI standard
+         and what every SDK uses). The script must use "$OPENAI_API_KEY",
+         "$MODEL", "$OPENAI_BASE_URL" as bash variables. NOT a hardcoded URL.
+      2. CRITICAL: Includes its OWN source code in the prompt sent to the LLM
+         (via $0, BASH_SOURCE, cat "$0", or equivalent). Not just a system prompt
+         describing what to do — the literal contents of the script itself.
+      3. Accepts a purpose/task string from $1 directly. NOT via interactive
+         `read -p`. NOT as a path to a file. The task string is "$1".
+      4. CRITICAL: Loops at most 10 iterations AND breaks early when the
+         reply is empty OR equals the literal string "exit". Without the early
+         "exit" break, the agent runs to the bound even after completing the
+         task, which times out in practice. Both break conditions are required:
+         [[ -z $c ]] AND [[ $c == exit ]]. Bound > 10 fails this behavior.
+      5. CRITICAL: POSTs to "$OPENAI_BASE_URL/chat/completions" with the OpenAI
+         chat-completions JSON shape, using "$OPENAI_API_KEY" as bearer auth.
+         Hardcoding api.openai.com or any other literal URL FAILS this behavior.
+      6. Extracts assistant message content from the JSON response, and handles
+         the case where it is null/empty without crashing the eval step.
+      7. Strips ``` fences from the reply. The sed/awk/regex must work on BSD
+         sed (macOS), not just GNU sed — no \\b, no \\s, no GNU-only extensions.
+      8. Evaluates the resulting bash (eval, bash -c, source — any of these).
+      9. Appends the reply AND the resulting stdout to the prompt for the next
          iteration (cumulative history, not overwriting).
 
     Things that DO NOT break equivalence:
-      - Different variable names, different loop syntax, different bound (5/20/100)
+      - Different variable names INTERNALLY, different loop syntax, different bound
       - set -euo pipefail or any extra safety checks
-      - Different unfence regex, as long as fenced content is extracted
+      - Different unfence regex (as long as it works on BSD sed)
       - Logging/printf differences, leading/trailing newlines
       - Error messages on missing env vars vs silent ':?' parameter expansion
       - Using 'bash -c' vs 'eval' (both run the LLM-supplied bash)
       - Inline curl body vs piped via @-
 
-    Things that DO break equivalence:
-      - Missing one of the 9 behaviors above
-      - Overwriting the prompt instead of appending (loses history)
-      - Not actually running the LLM-supplied bash (e.g. only printing it)
-      - Not stripping fences (so eval gets ``` literals)
+    Runtime failure patterns that DO break equivalence (auto-fail those behaviors):
+      - Hardcoding api.openai.com (or any literal URL) instead of using
+        "$OPENAI_BASE_URL" → fails #5
+      - Using KEY / API_KEY / API instead of the OpenAI standard names
+        OPENAI_API_KEY / OPENAI_BASE_URL → fails #1
+      - System prompt that DESCRIBES the agent without including $0 contents → fails #2
+      - `read -p`, `read -r -p`, or any interactive stdin prompt for the task → fails #3
+      - Treating "$1" as a file path (cat "$1", source "$1") → fails #3
+      - Single curl call outside a loop, or loop that bails after 1 iteration on
+        first error → fails #4
+      - GNU-only sed regex (\\b, \\s, alternation in BERE) → fails #7
+      - Calling eval on null/empty content without guarding → fails #6
+      - jq --argjson with unescaped strings (produces "invalid JSON" at runtime)
+        → fails #6
+      - Overwriting the prompt instead of appending (loses history) → fails #9
+      - Only printing the reply, not eval-ing it → fails #8
 
-    Score on the count of the 9 behaviors that work, mapped to 0-10:
-      9/9 → 10, 8/9 → 9, 7/9 → 8, 6/9 → 7, 5/9 → 5, 4/9 → 4, ≤3/9 → 0-3.
+    SCORING (be strict — runtime correctness matters):
+      - If ANY of behaviors 1, 2, 5, 8 are missing or broken: cap score at 4.
+        These four are the "skeleton" — without them the agent cannot loop at all.
+      - Otherwise count the 9 behaviors that work and map: 9→10, 8→9, 7→8,
+        6→6, 5→5, ≤4→3.
+      - When in doubt about whether something will run at runtime, assume it
+        WILL FAIL and mark the behavior missing. Optimism here is the bug.
 
     Output ONLY the JSON object below — no prose, no preamble, no chain-of-thought,
     no markdown fences. The very first character of your response must be '{'.
 
       {"behaviors_present": ["1","2",...], "behaviors_missing": ["..."],
+       "runtime_risks": ["short note per likely-failure"],
        "score": <int 0-10>, "verdict": "equivalent"|"close"|"broken"}
 """)
 
@@ -129,11 +165,11 @@ def strip_code_fence(text: str) -> str:
     return text
 
 
-def generate(prompt: str, *, n=3, temperature=0.7, timeout=90) -> list[str]:
+def generate(prompt: str, *, n=3, timeout=90, seed_base: int = 0) -> list[str]:
     return [
         strip_code_fence(chat(GEN_MODEL, [{"role": "user", "content": prompt}],
-                              temperature=temperature, timeout=timeout))
-        for _ in range(n)
+                              temperature=0, timeout=timeout, seed=seed_base + i))
+        for i in range(n)
     ]
 
 
@@ -182,11 +218,12 @@ def score_prompt(prompt: str, *, n=3) -> SimpleScore:
 if __name__ == "__main__":
     import sys
     prompt = sys.argv[1] if len(sys.argv) > 1 else (
-        "Write a bash script: requires env vars KEY MODEL API. Read your own source via $0. "
-        "Take purpose as $1. Build a prompt of 'you:' + own source + 'purpose:' + $1. "
-        "Loop 20 times: POST {model,messages:[{role:user,content:prompt}]} via curl to $API "
-        "with bearer $KEY, parse choices[0].message.content with jq, strip ``` fences, "
-        "print '> '+reply, eval the reply capturing stdout, append reply+output to prompt."
+        "Write a bash script: requires env vars OPENAI_API_KEY MODEL OPENAI_BASE_URL. "
+        "Read your own source via $0. Take purpose as $1. Build a prompt of 'you:' + own "
+        "source + 'purpose:' + $1. Loop 10 times: POST {model,messages:[{role:user,content:prompt}]} "
+        "via curl to $OPENAI_BASE_URL/chat/completions with bearer $OPENAI_API_KEY, parse "
+        "choices[0].message.content with jq, strip ``` fences, print '> '+reply, eval the reply "
+        "capturing stdout, append reply+output to prompt."
     )
     s = score_prompt(prompt, n=3)
     print(json.dumps(s.as_dict(), indent=2))

@@ -49,7 +49,7 @@ fi
 sandbox=""
 [[ ${1:-} == --sandbox ]] && { sandbox="$d/sandbox.sh"; shift; }
 
-KEY=$key \
+OPENAI_API_KEY=$key \
 MODEL=${MODEL:-openai-fast} \
-API=https://gen.pollinations.ai/v1/chat/completions \
+OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://gen.pollinations.ai/v1} \
 exec $sandbox "$d/shprout" "$@"

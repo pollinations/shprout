@@ -9,42 +9,64 @@ from __future__ import annotations
 import argparse, glob, json, os, random, sys, textwrap
 from datetime import datetime
 
-from eval_simple import chat, score_prompt
+from eval_simple import chat, score_prompt, REAL_SHPROUT, JUDGE_SYS
 
 DIR = os.path.dirname(os.path.abspath(__file__))
 LOG = os.path.join(DIR, "candidates.jsonl")
 TOP_K = 5  # how many leaderboard entries to show the proposer
 
 DEFAULT_SEEDS = [
-    "Write a bash script: requires env vars KEY MODEL API. Read your own source via $0. "
-    "Take purpose as $1. Build a prompt of 'you:' + own source + 'purpose:' + $1. "
-    "Loop 20 times: POST {model,messages:[{role:user,content:prompt}]} via curl to $API "
-    "with bearer $KEY, parse choices[0].message.content with jq, strip ``` fences, "
-    "print '> '+reply, eval the reply capturing stdout, append reply+output to prompt.",
-    "self-reading bash agent: requires KEY MODEL API. cat $0 + $1 into prompt. "
-    "loop 20: curl $API as openai chat, jq .choices[0].message.content, "
-    "strip ``` fences, eval, append reply+stdout to prompt.",
+    "Write a bash script: self-reading LLM agent. Requires env vars OPENAI_API_KEY, "
+    "MODEL, OPENAI_BASE_URL. Read $0 + $1 into a prompt. Loop 10: POST to "
+    "$OPENAI_BASE_URL/chat/completions with bearer $OPENAI_API_KEY, OpenAI chat shape "
+    "({model:$MODEL,messages:[{role:user,content:prompt}]}), jq .choices[0].message.content, "
+    "strip ``` fences, eval the reply capturing stdout, append reply+output to prompt.",
+    "self-reading bash agent: cat $0+$1 into prompt. env: OPENAI_API_KEY MODEL "
+    "OPENAI_BASE_URL. loop 10: curl $OPENAI_BASE_URL/chat/completions, "
+    "jq .choices[0].message.content, strip ``` fences, eval, "
+    "append reply+stdout to prompt.",
 ]
 
 PROPOSER_SYS = textwrap.dedent("""\
-    You are compressing a natural-language prompt. The prompt's job is to make a
-    capable LLM emit a tiny bash self-prompting agent (read $0+$1, loop 20×,
-    curl OpenAI-compat endpoint with $KEY/$MODEL/$API, jq the reply, strip ```
-    fences, eval, append reply+stdout to the prompt — like the original shprout).
+    You are compressing a natural-language prompt. The TARGET is shown below
+    verbatim. Your prompt's job: make a capable LLM emit BASH THAT IS BYTE-
+    IDENTICAL to the target — except for whitespace and internal variable names
+    (e.g. $p ↔ $prompt is fine, $OPENAI_API_KEY ↔ $KEY is NOT).
 
-    You will see a LEADERBOARD of the best prompts found so far, each with its
-    length, score (0..1), and a snippet of what it generated. Study what the
-    high-scoring SHORT prompts have in common; combine that with techniques from
-    longer high-scoring prompts. Avoid wording from low-scoring prompts.
+    Score = 1 - levenshtein(normalize(gen), normalize(target)) / len.
+    normalize() strips comments, collapses whitespace, and renames internal
+    vars to a single placeholder. Env var names ($OPENAI_API_KEY, $MODEL,
+    $OPENAI_BASE_URL), command names (curl, jq, eval, sed, jq -Rs, etc.),
+    string literals, and the API path /chat/completions are NOT normalized
+    away — they must be exact.
+
+    To score well your prompt should make the gen reproduce:
+      - the same control flow (`for ((i=10;i--;)); do ... done`)
+      - the same jq invocations and shapes
+      - the same curl flags (-sSd @-, headers)
+      - the same sed unfence trick
+      - the same `[[ -z $c || $c == exit ]] && break` early exit
+      - the same `eval "$c" | tee /dev/stderr` and prompt-append pattern
+
+    LEADERBOARD shows the top prompts so far with their reconstruction score
+    (0..1) and a snippet of what the gen produced. Higher = closer to target.
+
+    HARD CAP: your prompt MUST be under 90% of the target byte length.
+    Anything longer is rejected and wastes the iteration. The target is shown
+    above — count its bytes and cap your prompt at 0.9 × that.
 
     Output ONE new prompt that:
-      - Is SHORTER than the shortest currently scoring ≥ 0.8.
-      - Preserves every behavior the high-scorers preserve.
+      - Is SHORTER than the current best scoring ≥ 0.85, or
+      - Scores HIGHER than the current best at any length.
       - Uses any compression trick: symbols, abbreviations, dropping articles.
 
     The first character of your reply must be the new prompt itself.
     No commentary, no quotes, no preamble, no markdown fences, no labels.
-""")
+""") + (
+    "\n=== TARGET BASH (your prompt must elicit this verbatim, mod whitespace + internal var names) ===\n"
+    "```bash\n" + REAL_SHPROUT + "```\n"
+    "=== END TARGET ===\n"
+)
 
 
 def load_pareto_seeds(min_score: float = 0.7) -> list[dict]:
@@ -88,21 +110,37 @@ def render_leaderboard(rows: list[dict], k: int = TOP_K) -> str:
     return "\n".join(lines)
 
 
-def propose(rows: list[dict], proposer_model: str) -> str:
+def propose(rows: list[dict], proposer_model: str, *,
+            seed: int | None = None,
+            rejection_feedback: list[str] | None = None) -> str:
     """Ask the proposer for ONE new shorter prompt, given the leaderboard."""
     leaderboard = render_leaderboard(rows)
-    # current shortest passing — what we need to beat
-    passing = [r for r in rows if r["mean"] >= 0.8]
-    target_len = min((r["length"] for r in passing), default=300) - 1
+    best_score = max((r["mean"] for r in rows), default=0)
+    best_at_score = min(
+        (r for r in rows if r["mean"] >= best_score - 0.02),
+        key=lambda r: r["length"], default=None,
+    )
+    target_len = (best_at_score["length"] - 1) if best_at_score else 300
+    nonce = seed if seed is not None else random.randint(1, 10**9)
+    rej_block = ""
+    if rejection_feedback:
+        rej_block = "\nYour previous attempts this iter were rejected:\n" + "\n".join(
+            f"  - {r}" for r in rejection_feedback
+        ) + "\nSTOP pasting the target verbatim. Describe it, don't quote it.\n"
     msg = (
+        f"# iteration seed {nonce}\n\n"
         f"{leaderboard}\n\n"
-        f"Target: STRICTLY UNDER {target_len} characters, score ≥ 0.8.\n"
+        f"Goal: beat reconstruction score {best_score:.2f} OR match it under "
+        f"{target_len} characters.\n"
+        f"{rej_block}"
         f"Reply with ONLY the new prompt text."
     )
+    # Bump temperature if we're retrying — break out of deterministic re-emission
+    temp = 0.0 if not rejection_feedback else min(0.3 + 0.2 * len(rejection_feedback), 0.9)
     out = chat(proposer_model, [
         {"role": "system", "content": PROPOSER_SYS},
         {"role": "user", "content": msg},
-    ], temperature=1.0).strip()
+    ], temperature=temp, seed=seed).strip()
     if out.startswith("```"):
         out = out.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
     if (out.startswith('"') and out.endswith('"')) or (out.startswith("'") and out.endswith("'")):
@@ -164,7 +202,7 @@ def search(budget: int = 20, n_samples: int = 2,
 
     for it in range(1, budget + 1):
         try:
-            child = propose(rows, proposer_model)
+            child = propose(rows, proposer_model, seed=it)
         except Exception as e:
             print(f"iter {it}: proposer failed: {e}")
             continue
