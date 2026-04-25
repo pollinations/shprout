@@ -1,3 +1,19 @@
 .DS_Store
 experiments/
 *.log
+
+# compress/ experiment dir — may contain API responses with bearer tokens echoed back
+compress/.venv/
+compress/gepa_runs/
+compress/best.json
+compress/__pycache__/
+compress/uv.lock
+compress/candidates.jsonl
+compress/candidates-*.jsonl
+compress/top20.json
+
+# Playwright artifacts
+.playwright-mcp/
+
+# Claude Code harness state
+.claude/
