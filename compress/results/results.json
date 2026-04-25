@@ -1,0 +1,55 @@
+{
+  "task": "SHA256(\"shprout\") -> f017597f",
+  "runtime_model": "claude",
+  "shprout_reference_bytes": 910,
+  "configs": [
+    {
+      "name": "claude-large, no brevity hint",
+      "gen_model": "claude-large",
+      "prompt_bytes": 254,
+      "prompt": "self-reading bash agent: cat $0+$1 into prompt. env: OPENAI_API_KEY MODEL OPENAI_BASE_URL. loop 10: curl $OPENAI_BASE_URL/chat/completions with bearer $OPENAI_API_KEY, jq .choices[0].message.content, strip ``` fences, eval, append reply+stdout to prompt.",
+      "samples": [
+        {"i": 1, "len": 2596, "rc": 0, "pass": true},
+        {"i": 2, "len": 2620, "rc": 1, "pass": false},
+        {"i": 3, "len": 3124, "rc": 0, "pass": false},
+        {"i": 4, "len": 2596, "rc": 0, "pass": true},
+        {"i": 5, "len": 2762, "rc": 0, "pass": true}
+      ],
+      "pass_rate": 0.6,
+      "avg_gen_bytes": 2739,
+      "smallest_pass_bytes": 2596,
+      "sample_file": "sample-claude-large-2596B.sh"
+    },
+    {
+      "name": "opus-4.7, brevity hint",
+      "gen_model": "claude-opus-4.7",
+      "prompt_bytes": 288,
+      "prompt": "minimal golfed bash agent (under 1KB, single-letter vars): cat $0+$1 into prompt. env: OPENAI_API_KEY MODEL OPENAI_BASE_URL. loop 10: curl $OPENAI_BASE_URL/chat/completions with bearer $OPENAI_API_KEY, jq .choices[0].message.content, strip ``` fences, eval, append reply+stdout to prompt.",
+      "samples": [
+        {"i": 1, "len": 481, "rc": 0, "pass": true},
+        {"i": 2, "len": 395, "rc": 0, "pass": true},
+        {"i": 3, "len": 415, "rc": 0, "pass": false}
+      ],
+      "pass_rate": 0.667,
+      "avg_gen_bytes": 430,
+      "smallest_pass_bytes": 395,
+      "sample_file": "sample-opus-4.7-brevity-395B.sh"
+    },
+    {
+      "name": "opus-4.7, think-and-golf prompt (n=3)",
+      "gen_model": "claude-opus-4.7",
+      "prompt_bytes": 473,
+      "prompt": "Think carefully about how to golf this bash to under 500 bytes. Use single-letter vars, terse loops, minimal whitespace. Then output ONLY the final bash inside one ```bash fence, no commentary, no explanation.\n\nSpec: self-reading bash agent. Reads $0+$1 into prompt. env: OPENAI_API_KEY MODEL OPENAI_BASE_URL. Loop 10: curl $OPENAI_BASE_URL/chat/completions with bearer $OPENAI_API_KEY, jq .choices[0].message.content, strip ``` fences, eval, append reply+stdout to prompt.",
+      "samples": [
+        {"i": 1, "len": 382, "rc": 0, "pass": false},
+        {"i": 2, "len": 392, "rc": 0, "pass": true},
+        {"i": 3, "len": 427, "rc": 0, "pass": false}
+      ],
+      "pass_rate": 0.333,
+      "avg_gen_bytes": 400,
+      "smallest_pass_bytes": 392,
+      "sample_file": "sample-opus-4.7-think-392B.sh"
+    }
+  ],
+  "headline": "opus-4.7 + brevity hint produces 395B passing bash (2.30x smaller than 910B shprout). claude-large refuses to golf — produces verbose enterprise bash regardless of prompt brevity."
+}
