@@ -11,13 +11,13 @@ That's it.
 # Think out loud in `# bash comments`, then write the next command.
 : "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
-p="<you>$(<"$0")</you>
-<task>$1</task>
+sys=$(<"$0")
+p="<task>$1</task>
 #log
 "
 
 for i in {1..20}; do
-  cmd=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}],stop:[\"\n\$ \"]}" <<<"$p" \
+  cmd=$(jq -Rs --arg s "$sys" '{model:env.MODEL,messages:[{role:"system",content:$s},{role:"user",content:.}],stop:["\n$ "]}' <<<"$p" \
     | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
       -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
     | jq -r .choices[0].message.content)
