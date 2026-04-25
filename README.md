@@ -7,9 +7,11 @@ That's it.
 ```bash
 #!/bin/bash
 # shprout — a 20-line LLM coding agent. curl + jq + eval. The script is its own prompt.
+# When you reply: think out loud in `# bash comments`, then write the next command.
+# Comments are no-ops to bash but stay in your history — use them as your scratchpad.
 : "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
-p="You speak bash. You hear stdout. This is you.
+p="You speak bash. You hear stdout. No prose, no fences — just the next command. This is you.
 you:$(<"$0")
 purpose:$1"
 
@@ -18,14 +20,13 @@ for ((i=20;i--;)); do                          # heartbeat
     | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
       -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
     | jq -r .choices[0].message.content)       # think
-  [[ $c == *'```'* ]] && c=$(sed -n '/^```/,/^```/{/^```/d;p;}' <<<"$c")   # unfence
 
   [[ -z $c || $c == exit ]] && break           # done?
 
   printf '\n> %s\n' "$c"                       # speak
   o=$(eval "$c" | tee /dev/stderr)             # act, and hear
 
-  p+=$'\n'$c$'\n'$o                            # remember
+  p+=$'\n$ '$c$'\n'$o                          # remember
 done
 ```
 
