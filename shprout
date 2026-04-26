@@ -1,24 +1,23 @@
 #!/bin/bash
-# shprout
-# You speak bash. You hear stdout. No prose, no fences — just the next command.
-# Think out loud in `# bash comments`, then write the next command.
+# shprout — edit me. I re-read myself every turn.
 : "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
-sys=$(<"$0")
+[[ $0 == ./shprout ]] || { cp "$0" ./shprout && chmod +x ./shprout && exec ./shprout "$@"; }
+
 p="<task>$1</task>
 #log
 "
 
-for i in {1..20}; do
-  cmd=$(jq -Rs --arg s "$sys" '{model:env.MODEL,messages:[{role:"system",content:$s},{role:"user",content:.}],stop:["\n$ "]}' <<<"$p" \
+for i in {1..20}; do                              # heartbeat
+  cmd=$(jq -Rs --arg s "$(<"$0")" '{model:env.MODEL,messages:[{role:"user",content:("<you>"+$s+"</you>\n"+.)}],stop:["\n$ "]}' <<<"$p" \
     | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
       -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
-    | jq -r .choices[0].message.content)
+    | jq -r .choices[0].message.content)        # think
 
-  [[ -z $cmd || $cmd == exit ]] && break
+  [[ -z $cmd || $cmd == exit ]] && break        # done?
 
-  printf '\n$ %s\n' "$cmd"
-  out=$(eval "$cmd" 2>&1 | tee /dev/stderr)
+  printf '\n$ %s\n' "$cmd"                      # speak
+  out=$(eval "$cmd" 2>&1 | tee /dev/stderr)     # act, and hear
 
-  p+=$'\n# > '$cmd$'\n'$out
+  p+=$'\n# > '$cmd$'\n'$out                     # remember
 done
