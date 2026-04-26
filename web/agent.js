@@ -11,13 +11,14 @@ const think = (key, model, sys, log) => fetch('https://gen.pollinations.ai/v1/ch
 }).then(r => r.json()).then(r => r.choices[0].message.content);
 
 const act = async code => {
-  const logs = [], orig = console.log;
-  console.log = (...a) => logs.push(a.map(String).join(' '));
+  const logs = [], orig = { log: console.log, error: console.error, warn: console.warn };
+  const cap = tag => (...a) => logs.push(`${tag}${a.map(String).join(' ')}`);
+  console.log = cap(''); console.error = cap('!! '); console.warn = cap('? ');
   try {
     const ret = await (0, eval)(code);
     if (ret !== undefined) logs.push(`=> ${String(ret)}`);
-  } catch (e) { logs.push(`Error: ${e.message}`); }
-  console.log = orig;
+  } catch (e) { logs.push(`!! ${e.stack || e.message}`); }
+  Object.assign(console, orig);
   return logs.join('\n');
 };
 
