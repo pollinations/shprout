@@ -14,7 +14,7 @@ for i in {1..20}; do                              # heartbeat
   [[ -z $cmd || $cmd == exit ]] && break        # done?
 
   printf '\n$ %s\n' "$cmd"                      # speak
-  out=$(eval "$cmd" 2>&1 | tee /dev/stderr)     # act, and hear
+  out=$(eval "$cmd" </dev/null 2>&1); printf '%s\n' "$out"  # act, and hear
 
   p+=$'\n# > '$cmd$'\n'$out                     # remember
 done
