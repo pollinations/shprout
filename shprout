@@ -1,20 +1,21 @@
 #!/bin/bash
 # shprout
-# You speak bash. You hear stdout. Think in `# comments`, then write the next command.
+# You think out loud. Put bash in a ```bash fence to run it.
 : "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
 p="<you>$(<"$0")</you>"$'\n<task>'"$1"$'</task>\n#log\n'
 
 for i in {1..20}; do                              # heartbeat
-  cmd=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}],stop:[\"\n\$ \"]}" <<<"$p" \
+  rsp=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
     | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
       -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
     | jq -r .choices[0].message.content)        # think
 
+  cmd=$(awk '/^```/{if(f){exit}f=1;next} f' <<<"$rsp")  # unfence (first block)
   [[ -z $cmd || $cmd == exit ]] && break        # done?
 
-  printf '\n$ %s\n' "$cmd"                      # speak
-  out=$(eval "$cmd" 2>&1 | tee /dev/stderr)     # act, and hear
+  printf '\n%s\n$ %s\n' "$rsp" "$cmd"           # speak (full thought, then cmd)
+  out=$(eval "$cmd" </dev/null 2>&1 | tee /dev/stderr)  # act, and hear
 
-  p+=$'\n# > '$cmd$'\n'$out                     # remember
+  p+=$'\n--- you ---\n'$rsp$'\n--- bash ---\n'$out  # remember (full response + output)
 done
