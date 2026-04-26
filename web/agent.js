@@ -1,59 +1,77 @@
-// jsprout — you think out loud. Put JS in a ```js fence; I eval it.
-// Last expression is your "result" (DevTools-style). console.log is captured;
-// console.error/warn show up prefixed `!!` / `?`. The DOM persists between turns.
-// #stage is yours to paint.
+// jsprout — you are a node in a tree of agents. Each turn, you write ONE async
+// function in a ```js fence. I evaluate it. The function's BODY does the work
+// (DOM, fetch, console, whatever). The function's RETURN VALUE is an array of
+// children to spawn — each `{ task }` becomes a parallel sub-agent.
 //
-// YOUR CURRENT TASK is whatever's in the LAST <task>...</task> tag in the log.
-// Earlier <task> tags are history — what previous turns/parents were working on.
+//   return []                              → you're done, this branch ends
+//   return [{ task: 'X' }]                 → continue with task X
+//   return [{ task: 'A' }, { task: 'B' }]  → fan out: A and B run in parallel
 //
-// THE LOOP IS YOURS. There is no auto-recursion. After your code runs,
-// jsprout halts UNLESS your code calls jsprout() before returning.
-//   jsprout()            → another turn, same task, you'll see the JS output
-//   jsprout({ task })    → spawn a sub-agent: log carries over, fresh <task> appended
-//   (don't call it)      → you're done
-// Multiple jsprout({ task }) calls in one turn = parallel sub-agents (fan-out).
-// They share the parent log up to this point, then each gets its own task.
-// They race on the DOM, so isolate their writes (e.g. each to its own #divN).
+// Sub-agents inherit your full message history (system + every turn so far),
+// then get their own <task> appended. They share the DOM — isolate writes to
+// avoid races (e.g. each child writes its own #divN).
+//
+// Your task is the most recent <task path="..."> in the conversation. The path
+// shows your position in the tree: "0" is root, "0.1" is the 2nd child of root,
+// "0.1.2" is the 3rd child of that, etc. Use it to namespace DOM writes if you
+// want collision-free fan-out: `<div id="d-${path}">`.
+//
+// Shape your code MUST take:
+//   ```js
+//   async () => {
+//     // ... do work ...
+//     return [];   // or [{ task: '...' }, ...]
+//   }
+//   ```
+// I eval the fence, expect a function, call it, await it, and treat the result
+// as your children. console.log/warn/error are captured (warn → `?`, error → `!!`).
 
-const think = (ctx, log) => fetch('https://gen.pollinations.ai/v1/chat/completions', {
+const think = (ctx, messages) => fetch('https://gen.pollinations.ai/v1/chat/completions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.key}` },
   body: JSON.stringify({ model: ctx.model, stop: ['```\n'],
-    messages: [{ role: 'system', content: ctx.sys }, { role: 'user', content: log }] }),
+    messages: [{ role: 'system', content: ctx.sys }, ...messages] }),
 }).then(r => r.json()).then(r => r.choices[0].message.content);
 
 const act = async code => {
   const logs = [], orig = { log: console.log, error: console.error, warn: console.warn };
   const cap = tag => (...a) => logs.push(`${tag}${a.map(String).join(' ')}`);
   console.log = cap(''); console.error = cap('!! '); console.warn = cap('? ');
+  let next = [];
   try {
-    const ret = await (0, eval)(code);
-    if (ret !== undefined) logs.push(`=> ${String(ret)}`);
+    const fn = (0, eval)(code);
+    if (typeof fn !== 'function') throw new Error(`expected an async function, got ${typeof fn}`);
+    const ret = await fn();
+    if (Array.isArray(ret)) next = ret;
+    else if (ret !== undefined) logs.push(`!! return must be an array; got ${typeof ret}`);
   } catch (e) { logs.push(`!! ${e.stack || e.message}`); }
   Object.assign(console, orig);
-  return logs.join('\n');
+  return { out: logs.join('\n') || '(no output)', next };
 };
 
 const extract = rsp => rsp.match(/^```[^\n]*\n([\s\S]*)/m)?.[1]?.trim();
-const append = (log, rsp, out) => `${log}\n--- you ---\n${rsp}\n--- js ---\n${out}\n`;
-const start = task => `<task>${task}</task>\n#log\n`;
 
-// one turn: think → act. Model continues by calling jsprout() inside its code.
-const step = async (ctx, task, log) => {
-  const rsp = await think(ctx, log);
+const step = async (ctx, path, messages) => {
+  const rsp = await think(ctx, messages);
+  ctx.show('prose', rsp, path);
   const code = extract(rsp);
-  ctx.show('prose', rsp);
   if (!code) return;
-  ctx.show('code', code);
-  window.jsprout = (o = {}) => {
-    const carried = append(log, rsp, o.log ?? '(pending)');
-    return step(ctx, o.task ?? task, o.task ? `${carried}\n<task>${o.task}</task>\n` : carried);
-  };
-  const out = await act(code);
-  ctx.show('out', out);
+  ctx.show('code', code, path);
+  const { out, next } = await act(code);
+  ctx.show('out', out, path);
+  const nextMessages = [...messages,
+    { role: 'assistant', content: rsp },
+    { role: 'user', content: `--- js output ---\n${out}` }];
+  return spawn(ctx, next, nextMessages, path);
 };
+
+const spawn = (ctx, items, messages, parentPath) =>
+  Promise.all(items.map(({ task }, i) => {
+    const path = `${parentPath}.${i}`;
+    return step(ctx, path, [...messages, { role: 'user', content: `<task path="${path}">${task}</task>` }]);
+  }));
 
 export const jsprout = async ({ task, model, key, show }) => {
   const sys = await fetch(import.meta.url).then(r => r.text());
-  return step({ sys, model, key, show }, task, start(task));
+  return spawn({ sys, model, key, show }, [{ task }], [], '');
 };

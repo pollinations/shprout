@@ -45,12 +45,13 @@
   if (key) { $('task').disabled = false; $('go').disabled = false; $('status').textContent = 'ready'; $('task').focus(); }
   else { $('auth').hidden = false; $('status').textContent = 'not authorized'; }
 
-  const show = (cls, text) => {
+  const show = (cls, text, path = '') => {
     const div = document.createElement('div');
     div.className = cls;
-    div.textContent = cls === 'prose' ? text.split('\n').map(l => '> ' + l).join('\n')
-      : cls === 'code' ? '```js\n' + text + '\n```'
-      : text;
+    const tag = path ? `[${path}] ` : '';
+    div.textContent = cls === 'prose' ? text.split('\n').map(l => `${tag}> ${l}`).join('\n')
+      : cls === 'code' ? `${tag}\`\`\`js\n${text}\n\`\`\``
+      : `${tag}${text}`;
     $('log').appendChild(div); $('log').scrollTop = $('log').scrollHeight;
   };
 
