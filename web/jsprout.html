@@ -59,7 +59,7 @@
     if (!task || !key) return;
     $('go').disabled = true; $('status').textContent = 'thinking…';
     show('prose', `\n$ ${task}`);
-    try { await jsprout({ task, key, model: 'claude-large', show }); }
+    try { await jsprout({ task, key, model: 'claude-fast', show }); }
     catch (e) { show('err', e.message); }
     $('go').disabled = false; $('status').textContent = 'ready';
   }
