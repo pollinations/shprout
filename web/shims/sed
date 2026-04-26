@@ -1,0 +1,12 @@
+#!/bin/bash
+# Tiny sed shim for WebContainers (no real sed available).
+# Only handles the one program shprout uses:
+#   sed 's/^/> /'
+# i.e. prefix every line with "> ".
+prog=$1
+if [[ $prog == 's/^/> /' ]]; then
+  while IFS= read -r line; do printf '> %s\n' "$line"; done
+  exit 0
+fi
+echo "sed-shim: unsupported program: $prog" >&2
+exit 2

@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>jsprout</title>
+<style>
+  html, body { margin: 0; height: 100%; font: 14px system-ui; background: #fafafa; }
+  body { display: grid; grid-template-rows: auto 1fr 200px; }
+  #bar { padding: 8px; background: #222; color: #eee; display: flex; gap: 8px; align-items: center; }
+  #bar input { flex: 1; background: #333; color: #eee; border: 1px solid #444; padding: 6px 8px; border-radius: 4px; font: inherit; }
+  #bar button { padding: 6px 12px; border: 0; border-radius: 4px; cursor: pointer; font: inherit; background: #2563eb; color: white; }
+  #bar button.auth { background: #16a34a; }
+  #bar button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #stage { padding: 16px; overflow: auto; background: white; }
+  #log { background: #111; color: #ddd; font: 12px ui-monospace, monospace; padding: 8px; overflow: auto; white-space: pre-wrap; border-top: 1px solid #333; }
+  .prose { color: #888; } .code { color: #7dd3fc; } .out { color: #a7f3d0; } .err { color: #fca5a5; }
+</style>
+
+<div id="bar">
+  <input id="task" placeholder='task (e.g. "draw a Barnsley fern in #stage")' autofocus disabled>
+  <button id="go" disabled>Run</button>
+  <button id="auth" class="auth" hidden>Authorize</button>
+  <span id="status" style="color:#aaa"></span>
+</div>
+<div id="stage"></div>
+<div id="log"></div>
+
+<script type="module">
+  import { jsprout } from './agent.js';
+
+  const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
+  const STORE = 'jsprout.apiKey';
+  const frag = new URLSearchParams(location.hash.slice(1));
+  if (frag.get('api_key')) {
+    localStorage.setItem(STORE, frag.get('api_key'));
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  const key = localStorage.getItem(STORE);
+
+  const $ = id => document.getElementById(id);
+  $('auth').onclick = () => {
+    const u = new URL('https://enter.pollinations.ai/authorize');
+    u.searchParams.set('app_key', APP_KEY);
+    u.searchParams.set('redirect_url', location.origin + location.pathname);
+    location.href = u.toString();
+  };
+  if (key) { $('task').disabled = false; $('go').disabled = false; $('status').textContent = 'ready'; $('task').focus(); }
+  else { $('auth').hidden = false; $('status').textContent = 'not authorized'; }
+
+  const show = (cls, text) => {
+    const div = document.createElement('div');
+    div.className = cls;
+    div.textContent = cls === 'prose' ? text.split('\n').map(l => '> ' + l).join('\n')
+      : cls === 'code' ? '```js\n' + text + '\n```'
+      : text;
+    $('log').appendChild(div); $('log').scrollTop = $('log').scrollHeight;
+  };
+
+  async function go() {
+    const task = $('task').value.trim();
+    if (!task || !key) return;
+    $('go').disabled = true; $('status').textContent = 'thinking…';
+    show('prose', `\n$ ${task}`);
+    try { await jsprout({ task, key, model: 'claude-large', show }); }
+    catch (e) { show('err', e.message); }
+    $('go').disabled = false; $('status').textContent = 'ready';
+  }
+  $('go').onclick = go;
+  $('task').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+</script>

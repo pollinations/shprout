@@ -1,0 +1,124 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>shprout in a tab</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #eee; font: 14px system-ui; }
+  #bar { padding: 6px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #333; }
+  #bar input { flex: 1; background: #222; color: #eee; border: 1px solid #444; padding: 6px 8px; border-radius: 4px; font: inherit; }
+  #bar button { background: #2563eb; color: white; border: 0; padding: 6px 12px; border-radius: 4px; cursor: pointer; font: inherit; }
+  #bar button.auth { background: #16a34a; }
+  #bar button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #term { height: calc(100vh - 44px); padding: 8px; }
+</style>
+
+<div id="bar">
+  <input id="task" placeholder="task for shprout (e.g. count files in /tmp)" autofocus disabled>
+  <button id="go" disabled>Run</button>
+  <button id="auth" class="auth" hidden>Authorize</button>
+  <span id="status" style="color:#888"></span>
+</div>
+<div id="term"></div>
+
+<script type="module">
+  import { Terminal } from 'https://esm.sh/@xterm/xterm@5.5.0';
+  import { FitAddon } from 'https://esm.sh/@xterm/addon-fit@0.10.0';
+  import { WebContainer } from 'https://esm.sh/@webcontainer/api@1.5.1';
+
+  const APP_KEY = 'pk_xMe0kHLHGca6k7lf';                  // shprout's publishable key
+  const KEY_STORE = 'shprout.apiKey';
+  const POLLI_AUTH = 'https://enter.pollinations.ai/authorize';
+  const POLLI_BASE = 'https://gen.pollinations.ai/v1';
+
+  const term = new Terminal({ convertEol: true, fontSize: 13, theme: { background: '#111' } });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById('term'));
+  fit.fit();
+  addEventListener('resize', () => fit.fit());
+
+  const status = document.getElementById('status');
+  const taskEl = document.getElementById('task');
+  const goEl = document.getElementById('go');
+  const authEl = document.getElementById('auth');
+  const setStatus = s => status.textContent = s;
+  const log = s => term.write(s + '\r\n');
+
+  // BYOP: extract sk_ from URL fragment if redirected back from authorize
+  const frag = new URLSearchParams(location.hash.slice(1));
+  const incomingKey = frag.get('api_key');
+  if (incomingKey) {
+    localStorage.setItem(KEY_STORE, incomingKey);
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  let apiKey = localStorage.getItem(KEY_STORE);
+
+  function authorize() {
+    const url = new URL(POLLI_AUTH);
+    url.searchParams.set('app_key', APP_KEY);
+    url.searchParams.set('redirect_url', location.origin + location.pathname);
+    location.href = url.toString();
+  }
+  authEl.onclick = authorize;
+
+  if (!apiKey) {
+    authEl.hidden = false;
+    setStatus('not authorized');
+    log('\x1b[33mclick "Authorize" to grant shprout access to your Pollinations balance (BYOP).\x1b[0m');
+  }
+
+  setStatus('booting…');
+  log('\x1b[2mbooting WebContainer…\x1b[0m');
+  const wc = await WebContainer.boot();
+  window.wc = wc;  // expose for probing
+
+  log('\x1b[2mfetching shprout + shims…\x1b[0m');
+  const [shprout, awkShim, sedShim] = await Promise.all([
+    fetch('/shprout.txt').then(r => r.text()),
+    fetch('/shims/awk').then(r => r.text()),
+    fetch('/shims/sed').then(r => r.text()),
+  ]);
+  await wc.mount({
+    'shprout': { file: { contents: shprout } },
+    'bin': { directory: {
+      'awk': { file: { contents: awkShim } },
+      'sed': { file: { contents: sedShim } },
+    }},
+  });
+  await (await wc.spawn('jsh', ['-c', 'chmod +x shprout bin/awk bin/sed'])).exit;
+
+  log('\x1b[2mprobing environment…\x1b[0m');
+  const probe = await wc.spawn('jsh', ['-c', 'pwd; ls bin; echo "PATH-test:"; PATH="$PWD/bin:$PATH" which awk sed; echo ready'], {
+    env: { PATH: '/usr/local/bin:/usr/bin:/bin' }
+  });
+  probe.output.pipeTo(new WritableStream({ write: c => term.write(c) }));
+  await probe.exit;
+
+  setStatus(apiKey ? 'ready' : 'awaiting authorization');
+  log('\r\n\x1b[32mWebContainer ready.\x1b[0m' + (apiKey ? ' type a task and hit Run.\r\n' : ' authorize first.\r\n'));
+
+  if (apiKey) { taskEl.disabled = false; goEl.disabled = false; taskEl.focus(); }
+
+  goEl.onclick = run;
+  taskEl.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+
+  async function run() {
+    const task = taskEl.value.trim();
+    if (!task || !apiKey) return;
+    setStatus('running…');
+    goEl.disabled = true;
+    log(`\r\n\x1b[36m$ shprout "${task}"\x1b[0m`);
+    const proc = await wc.spawn('bash', ['-c', 'PATH="$PWD/bin:$PATH" exec bash shprout "$1"', '--', task], {
+      env: {
+        OPENAI_API_KEY: apiKey,
+        MODEL: 'claude-large',
+        OPENAI_BASE_URL: POLLI_BASE,
+      },
+    });
+    proc.output.pipeTo(new WritableStream({ write: c => term.write(c) }));
+    const code = await proc.exit;
+    log(`\x1b[2m[exit ${code}]\x1b[0m`);
+    setStatus('ready');
+    goEl.disabled = false;
+  }
+</script>

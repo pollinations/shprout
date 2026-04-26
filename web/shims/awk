@@ -1,0 +1,17 @@
+#!/bin/bash
+# Tiny awk shim for WebContainers (no real awk available).
+# Only handles the one program shprout uses:
+#   awk '/^```/{f=1;next} f'
+# i.e. "after the first line starting with ```, print every following line."
+# For anything else, exits 2 with a hint.
+prog=$1
+if [[ $prog == '/^```/{f=1;next} f' ]]; then
+  f=0
+  while IFS= read -r line; do
+    if (( f )); then printf '%s\n' "$line"
+    elif [[ $line == '```'* ]]; then f=1; fi
+  done
+  exit 0
+fi
+echo "awk-shim: unsupported program: $prog" >&2
+exit 2
