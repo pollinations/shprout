@@ -1,77 +1,75 @@
-// jsprout — you are a node in a tree of agents. Each turn, you write ONE async
-// function in a ```js fence. I evaluate it. The function's BODY does the work
-// (DOM, fetch, console, whatever). The function's RETURN VALUE is an array of
-// children to spawn — each `{ task }` becomes a parallel sub-agent.
+// jsprout — write ONE async function body in a ```js fence. I build it with
+// `new AsyncFunction(...names, code)` and call it with these names in scope:
 //
-//   return []                              → you're done, this branch ends
-//   return [{ task: 'X' }]                 → continue with task X
-//   return [{ task: 'A' }, { task: 'B' }]  → fan out: A and B run in parallel
+//   stage    — YOUR DOM element. Paint inside it. Don't touch anything outside.
+//              At the root this is #stage. When your parent spawned you with
+//              `jsprout({ task, stage: someEl })`, this is `someEl`.
+//   console  — { log, warn, error } — captured to your output panel.
+//   fetch    — same as window.fetch.
+//   jsprout  — async (opts) => result. Spawns a sub-agent and resolves when it's done.
 //
-// Sub-agents inherit your full message history (system + every turn so far),
-// then get their own <task> appended. They share the DOM — isolate writes to
-// avoid races (e.g. each child writes its own #divN).
+// Continuing or fanning out is just calling jsprout:
+//   await jsprout({ task: 'next thing' })          // continue serially
+//   await Promise.all([                            // fan out in parallel
+//     jsprout({ task: 'A' }),
+//     jsprout({ task: 'B' }),
+//   ])
+//   (don't call it)                                // you're done
 //
-// Your task is the most recent <task path="..."> in the conversation. The path
-// shows your position in the tree: "0" is root, "0.1" is the 2nd child of root,
-// "0.1.2" is the 3rd child of that, etc. Use it to namespace DOM writes if you
-// want collision-free fan-out: `<div id="d-${path}">`.
+// To give each child its OWN slot inside your stage (no DOM races):
+//   const a = document.createElement('div'); stage.append(a);
+//   const b = document.createElement('div'); stage.append(b);
+//   await Promise.all([
+//     jsprout({ task: 'paint A', stage: a }),
+//     jsprout({ task: 'paint B', stage: b }),
+//   ]);
 //
-// Shape your code MUST take:
-//   ```js
-//   async () => {
-//     // ... do work ...
-//     return [];   // or [{ task: '...' }, ...]
-//   }
-//   ```
-// I eval the fence, expect a function, call it, await it, and treat the result
-// as your children. console.log/warn/error are captured (warn → `?`, error → `!!`).
+// Sub-agents inherit your log up to this point, then get their own <task> appended.
+// Your task is the LAST <task>...</task> in the log. Earlier ones are history.
+// The DOM persists between turns. Globals you set on globalThis persist too.
 
-const think = (ctx, messages) => fetch('https://gen.pollinations.ai/v1/chat/completions', {
+const AsyncFn = (async function(){}).constructor;
+
+const think = (ctx, log) => fetch('https://gen.pollinations.ai/v1/chat/completions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.key}` },
   body: JSON.stringify({ model: ctx.model, stop: ['```\n'],
-    messages: [{ role: 'system', content: ctx.sys }, ...messages] }),
+    messages: [{ role: 'system', content: ctx.sys }, { role: 'user', content: log }] }),
 }).then(r => r.json()).then(r => r.choices[0].message.content);
 
-const act = async code => {
-  const logs = [], orig = { log: console.log, error: console.error, warn: console.warn };
+const act = async (code, scope) => {
+  const logs = [];
   const cap = tag => (...a) => logs.push(`${tag}${a.map(String).join(' ')}`);
-  console.log = cap(''); console.error = cap('!! '); console.warn = cap('? ');
-  let next = [];
+  const console = { log: cap(''), warn: cap('? '), error: cap('!! ') };
+  const fullScope = { ...scope, console };
   try {
-    const fn = (0, eval)(code);
-    if (typeof fn !== 'function') throw new Error(`expected an async function, got ${typeof fn}`);
-    const ret = await fn();
-    if (Array.isArray(ret)) next = ret;
-    else if (ret !== undefined) logs.push(`!! return must be an array; got ${typeof ret}`);
+    const fn = new AsyncFn(...Object.keys(fullScope), code);
+    const ret = await fn(...Object.values(fullScope));
+    if (ret !== undefined) logs.push(`=> ${String(ret)}`);
   } catch (e) { logs.push(`!! ${e.stack || e.message}`); }
-  Object.assign(console, orig);
-  return { out: logs.join('\n') || '(no output)', next };
+  return logs.join('\n') || '(no output)';
 };
 
 const extract = rsp => rsp.match(/^```[^\n]*\n([\s\S]*)/m)?.[1]?.trim();
+const append = (log, rsp, out) => `${log}\n--- you ---\n${rsp}\n--- js ---\n${out}\n`;
+const start = task => `<task>${task}</task>\n#log\n`;
 
-const step = async (ctx, path, messages) => {
-  const rsp = await think(ctx, messages);
-  ctx.show('prose', rsp, path);
+const step = async (ctx, task, log, stage) => {
+  const rsp = await think(ctx, log);
+  ctx.show('prose', rsp);
   const code = extract(rsp);
   if (!code) return;
-  ctx.show('code', code, path);
-  const { out, next } = await act(code);
-  ctx.show('out', out, path);
-  const nextMessages = [...messages,
-    { role: 'assistant', content: rsp },
-    { role: 'user', content: `--- js output ---\n${out}` }];
-  return spawn(ctx, next, nextMessages, path);
+  ctx.show('code', code);
+  const childLog = append(log, rsp, '(parent in-progress)');
+  const jsprout = (o = {}) =>
+    step(ctx, o.task ?? task,
+         o.task ? `${childLog}\n<task>${o.task}</task>\n` : childLog,
+         o.stage ?? stage);
+  const out = await act(code, { stage, fetch: window.fetch.bind(window), jsprout });
+  ctx.show('out', out);
 };
-
-const spawn = (ctx, items, messages, parentPath) =>
-  Promise.all(items.map(({ task }, i) => {
-    const path = `${parentPath}.${i}`;
-    return step(ctx, path, [...messages, { role: 'user', content: `<task path="${path}">${task}</task>` }]);
-  }));
 
 export const jsprout = async ({ task, model, key, show }) => {
   const sys = await fetch(import.meta.url).then(r => r.text());
-  return spawn({ sys, model, key, show }, [{ task }], [], '');
+  return step({ sys, model, key, show }, task, start(task), document.getElementById('stage'));
 };

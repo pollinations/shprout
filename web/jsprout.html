@@ -45,14 +45,19 @@
   if (key) { $('task').disabled = false; $('go').disabled = false; $('status').textContent = 'ready'; $('task').focus(); }
   else { $('auth').hidden = false; $('status').textContent = 'not authorized'; }
 
-  const show = (cls, text, path = '') => {
+  const show = (cls, text) => {
+    let logEl = $('log');
+    if (!logEl) {
+      logEl = document.createElement('div');
+      logEl.id = 'log';
+      document.body.appendChild(logEl);
+    }
     const div = document.createElement('div');
     div.className = cls;
-    const tag = path ? `[${path}] ` : '';
-    div.textContent = cls === 'prose' ? text.split('\n').map(l => `${tag}> ${l}`).join('\n')
-      : cls === 'code' ? `${tag}\`\`\`js\n${text}\n\`\`\``
-      : `${tag}${text}`;
-    $('log').appendChild(div); $('log').scrollTop = $('log').scrollHeight;
+    div.textContent = cls === 'prose' ? text.split('\n').map(l => '> ' + l).join('\n')
+      : cls === 'code' ? '```js\n' + text + '\n```'
+      : text;
+    logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight;
   };
 
   async function go() {
@@ -60,7 +65,7 @@
     if (!task || !key) return;
     $('go').disabled = true; $('status').textContent = 'thinking…';
     show('prose', `\n$ ${task}`);
-    try { await jsprout({ task, key, model: 'claude-fast', show }); }
+    try { await jsprout({ task, key, model: 'claude-large', show }); }
     catch (e) { show('err', e.message); }
     $('go').disabled = false; $('status').textContent = 'ready';
   }
