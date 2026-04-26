@@ -3,10 +3,7 @@
 // No top-level await — return a Promise (e.g. fetch(u).then(r=>r.text())) instead.
 // The DOM persists between turns. #stage is yours to paint into.
 // No fence = you're done. Don't apologize. Don't explain. Just do.
-const sys = await fetch(import.meta.url).then(r => r.text());     // I am my own prompt
-let log = '#log\n';                                               // memory across tasks
-
-const think = (key, model) => fetch('https://gen.pollinations.ai/v1/chat/completions', {
+const think = (key, model, sys, log) => fetch('https://gen.pollinations.ai/v1/chat/completions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
   body: JSON.stringify({ model, stop: ['```\n'],
