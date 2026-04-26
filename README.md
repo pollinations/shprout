@@ -7,17 +7,13 @@ That's it.
 ```bash
 #!/bin/bash
 # shprout
-# You speak bash. You hear stdout. No prose, no fences — just the next command.
-# Think out loud in `# bash comments`, then write the next command.
+# You speak bash. You hear stdout. Think in `# comments`, then write the next command.
 : "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
-sys=$(<"$0")
-p="<task>$1</task>
-#log
-"
+p="<you>$(<"$0")</you>"$'\n<task>'"$1"$'</task>\n#log\n'
 
 for i in {1..20}; do                              # heartbeat
-  cmd=$(jq -Rs --arg s "$sys" '{model:env.MODEL,messages:[{role:"system",content:$s},{role:"user",content:.}],stop:["\n$ "]}' <<<"$p" \
+  cmd=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}],stop:[\"\n\$ \"]}" <<<"$p" \
     | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
       -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
     | jq -r .choices[0].message.content)        # think
