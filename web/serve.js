@@ -9,6 +9,7 @@ const ROOT = new URL('.', import.meta.url).pathname;
 const SHPROUT = new URL('../shprout', import.meta.url).pathname;
 const SHIM_AWK = new URL('./shims/awk', import.meta.url).pathname;
 const SHIM_SED = new URL('./shims/sed', import.meta.url).pathname;
+const NODEPROUT = new URL('./nodeprout.mjs', import.meta.url).pathname;
 
 const types = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
@@ -16,18 +17,20 @@ const types = {
 };
 
 createServer(async (req, res) => {
-  if (req.url.startsWith('/index.html') || req.url === '/') {
+  const url = req.url.split('?')[0];
+  if (url === '/' || url === '/index.html' || url === '/nodeprout.html') {
     res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   }
 
-  let path = req.url.split('?')[0];
+  let path = url;
   if (path === '/') path = '/index.html';
 
   try {
     const file = path === '/shprout.txt' ? SHPROUT
       : path === '/shims/awk' ? SHIM_AWK
       : path === '/shims/sed' ? SHIM_SED
+      : path === '/nodeprout.mjs.txt' ? NODEPROUT
       : join(ROOT, path);
     const body = await readFile(file);
     res.setHeader('Content-Type', types[extname(file)] || 'text/plain');
