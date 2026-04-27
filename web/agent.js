@@ -3,29 +3,24 @@
 //
 //   stage    — YOUR DOM element. Paint inside it. Don't touch anything outside.
 //              At the root this is #stage. When your parent spawned you with
-//              `jsprout({ task, stage: someEl })`, this is `someEl`.
-//   console  — { log, warn, error } — captured to your output panel.
+//              a `{task, stage}` spec, this is the element they handed you.
+//   console  — { log, warn, error } — captured to your output panel and log.
 //   fetch    — same as window.fetch.
-//   jsprout  — async (opts) => result. Spawns a sub-agent and resolves when it's done.
 //
-// Continuing or fanning out is just calling jsprout:
-//   await jsprout({ task: 'next thing' })          // continue serially
-//   await Promise.all([                            // fan out in parallel
-//     jsprout({ task: 'A' }),
-//     jsprout({ task: 'B' }),
-//   ])
-//   (don't call it)                                // you're done
+// To continue, fan out, or stop: RETURN AN ARRAY of task specs.
+//   return []                                          // done. nothing else runs.
+//   return ['next thing']                              // one more turn, serial
+//   return ['A', 'B', 'C']                             // fan out: 3 parallel children
+//   return [{ task: 'A', stage: aEl },                 // give children their own slots
+//           { task: 'B', stage: bEl }]
 //
-// To give each child its OWN slot inside your stage (no DOM races):
-//   const a = document.createElement('div'); stage.append(a);
-//   const b = document.createElement('div'); stage.append(b);
-//   await Promise.all([
-//     jsprout({ task: 'paint A', stage: a }),
-//     jsprout({ task: 'paint B', stage: b }),
-//   ]);
+// Each element is either a string (becomes {task: string}) or {task, stage?}.
+// stage defaults to your stage if omitted. Children run after your code finishes,
+// so any DOM/global state you set is visible to them. Return ANYTHING ELSE
+// (undefined, a number, a string) and execution stops — only arrays continue.
 //
-// Sub-agents inherit your log up to this point, then get their own <task> appended.
-// Your task is the LAST <task>...</task> in the log. Earlier ones are history.
+// Children inherit your full log up to and including this turn, then get their
+// own <task>...</task> appended. Siblings do NOT see each other's logs.
 // The DOM persists between turns. Globals you set on globalThis persist too.
 
 const AsyncFn = (async function(){}).constructor;
@@ -42,34 +37,36 @@ const act = async (code, scope) => {
   const cap = tag => (...a) => logs.push(`${tag}${a.map(String).join(' ')}`);
   const console = { log: cap(''), warn: cap('? '), error: cap('!! ') };
   const fullScope = { ...scope, console };
+  let value;
   try {
     const fn = new AsyncFn(...Object.keys(fullScope), code);
-    const ret = await fn(...Object.values(fullScope));
-    if (ret !== undefined) logs.push(`=> ${String(ret)}`);
+    value = await fn(...Object.values(fullScope));
+    if (value !== undefined) logs.push(`=> ${JSON.stringify(value)}`);
   } catch (e) { logs.push(`!! ${e.stack || e.message}`); }
-  return logs.join('\n') || '(no output)';
+  return { text: logs.join('\n') || '(no output)', value };
 };
 
 const extract = rsp => rsp.match(/^```[^\n]*\n([\s\S]*)/m)?.[1]?.trim();
 const append = (log, rsp, out) => `${log}\n--- you ---\n${rsp}\n--- js ---\n${out}\n`;
 const start = task => `<task>${task}</task>\n#log\n`;
 
-const step = async (ctx, task, log, stage) => {
+const step = async (ctx, log, stage) => {
   const rsp = await think(ctx, log);
   ctx.show('prose', rsp);
   const code = extract(rsp);
   if (!code) return;
   ctx.show('code', code);
-  const childLog = append(log, rsp, '(parent in-progress)');
-  const jsprout = (o = {}) =>
-    step(ctx, o.task ?? task,
-         o.task ? `${childLog}\n<task>${o.task}</task>\n` : childLog,
-         o.stage ?? stage);
-  const out = await act(code, { stage, fetch: window.fetch.bind(window), jsprout });
-  ctx.show('out', out);
+  const out = await act(code, { stage, fetch: window.fetch.bind(window) });
+  ctx.show('out', out.text);
+  if (!Array.isArray(out.value) || out.value.length === 0) return;
+  const nextLog = append(log, rsp, out.text);
+  await Promise.allSettled(out.value.map(item => {
+    const spec = typeof item === 'string' ? { task: item } : item;
+    return step(ctx, `${nextLog}<task>${spec.task}</task>\n`, spec.stage ?? stage);
+  }));
 };
 
 export const jsprout = async ({ task, model, key, show }) => {
   const sys = await fetch(import.meta.url).then(r => r.text());
-  return step({ sys, model, key, show }, task, start(task), document.getElementById('stage'));
+  return step({ sys, model, key, show }, start(task), document.getElementById('stage'));
 };
