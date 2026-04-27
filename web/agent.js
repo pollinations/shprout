@@ -7,21 +7,23 @@
 //   console  — { log, warn, error } — captured to your output panel and log.
 //   fetch    — same as window.fetch.
 //
-// To continue, fan out, or stop: RETURN AN ARRAY of task specs.
+// To continue, fan out, or stop: RETURN AN ARRAY of objects.
 //   return []                                          // done. nothing else runs.
-//   return ['next thing']                              // one more turn, serial
-//   return ['A', 'B', 'C']                             // fan out: 3 parallel children
+//   return [{}]                                        // one more turn, no new task
+//   return [{ task: 'next thing' }]                    // one more turn with new task
+//   return [{ task: 'A' }, { task: 'B' }]              // fan out: 2 parallel children
 //   return [{ task: 'A', stage: aEl },                 // give children their own slots
 //           { task: 'B', stage: bEl }]
 //
-// Each element is either a string (becomes {task: string}) or {task, stage?}.
-// stage defaults to your stage if omitted. Children run after your code finishes,
-// so any DOM/global state you set is visible to them. Return ANYTHING ELSE
-// (undefined, a number, a string) and execution stops — only arrays continue.
+// Every element is an object. `task` and `stage` are both optional. If `task`
+// is omitted, no new <task> is appended — the child still sees the original
+// task at the top of the log and all your reasoning since. If `stage` is
+// omitted, the child paints into your stage. Return ANYTHING ELSE (undefined,
+// a number, a string) and execution stops — only arrays of objects continue.
 //
-// Children inherit your full log up to and including this turn, then get their
-// own <task>...</task> appended. Siblings do NOT see each other's logs.
-// The DOM persists between turns. Globals you set on globalThis persist too.
+// Children inherit your full log up to and including this turn. Siblings do
+// NOT see each other's logs (they ran in parallel). The DOM persists between
+// turns. Globals you set on globalThis persist too.
 
 const AsyncFn = (async function(){}).constructor;
 
@@ -60,9 +62,9 @@ const step = async (ctx, log, stage) => {
   ctx.show('out', out.text);
   if (!Array.isArray(out.value) || out.value.length === 0) return;
   const nextLog = append(log, rsp, out.text);
-  await Promise.allSettled(out.value.map(item => {
-    const spec = typeof item === 'string' ? { task: item } : item;
-    return step(ctx, `${nextLog}<task>${spec.task}</task>\n`, spec.stage ?? stage);
+  await Promise.allSettled(out.value.map(spec => {
+    const childLog = spec?.task ? `${nextLog}<task>${spec.task}</task>\n` : nextLog;
+    return step(ctx, childLog, spec?.stage ?? stage);
   }));
 };
 
