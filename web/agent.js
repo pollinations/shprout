@@ -7,6 +7,9 @@
 //   console  — { log, warn, error } — captured to your output panel and log.
 //   fetch    — same as window.fetch.
 //
+// Before each turn you also see a `<dom>` block in the log with your stage's
+// current outerHTML. Don't guess what's there — read it.
+//
 // To continue, fan out, or stop: RETURN AN ARRAY of objects.
 //   return []                                          // done. nothing else runs.
 //   return [{}]                                        // one more turn, no new task
@@ -50,10 +53,13 @@ const act = async (code, scope) => {
 
 const extract = rsp => rsp.match(/^```[^\n]*\n([\s\S]*)/m)?.[1]?.trim();
 const append = (log, rsp, out) => `${log}\n--- you ---\n${rsp}\n--- js ---\n${out}\n`;
+const snapshot = stage => `<dom>\n${stage.outerHTML}\n</dom>\n`;
 const start = task => `<task>${task}</task>\n#log\n`;
 
 const step = async (ctx, log, stage) => {
-  const rsp = await think(ctx, log);
+  const dom = snapshot(stage);
+  ctx.show('dom', dom);
+  const rsp = await think(ctx, log + dom);
   ctx.show('prose', rsp);
   const code = extract(rsp);
   if (!code) return;
