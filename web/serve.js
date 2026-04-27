@@ -16,8 +16,10 @@ const types = {
 };
 
 createServer(async (req, res) => {
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  if (req.url.startsWith('/index.html') || req.url === '/') {
+    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  }
 
   let path = req.url.split('?')[0];
   if (path === '/') path = '/index.html';
