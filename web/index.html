@@ -1,124 +1,835 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>shprout in a tab</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polli WebContainer</title>
+<link rel="stylesheet" crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
 <style>
-  html, body { margin: 0; height: 100%; background: #111; color: #eee; font: 14px system-ui; }
-  #bar { padding: 6px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #333; }
-  #bar input { flex: 1; background: #222; color: #eee; border: 1px solid #444; padding: 6px 8px; border-radius: 4px; font: inherit; }
-  #bar button { background: #2563eb; color: white; border: 0; padding: 6px 12px; border-radius: 4px; cursor: pointer; font: inherit; }
-  #bar button.auth { background: #16a34a; }
-  #bar button:disabled { opacity: 0.4; cursor: not-allowed; }
-  #term { height: calc(100vh - 44px); padding: 8px; }
+  :root {
+    color-scheme: light;
+    --ink: #17202a;
+    --muted: #637085;
+    --line: #d9e0e8;
+    --paper: #f6f8fb;
+    --panel: #ffffff;
+    --panel-2: #edf3f8;
+    --terminal: #101417;
+    --green: #16a34a;
+    --blue: #2563eb;
+    --rose: #e11d48;
+    --amber: #d97706;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--paper);
+    color: var(--ink);
+    font: 14px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  button, textarea, input, select { font: inherit; }
+  button {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    min-height: 34px;
+    padding: 7px 10px;
+    color: var(--ink);
+    background: var(--panel);
+  }
+  button:hover:not(:disabled) { border-color: #aeb9c7; }
+  button:disabled { cursor: not-allowed; opacity: .45; }
+
+  .app {
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 58px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background:
+      linear-gradient(135deg, rgba(22, 163, 74, .95), rgba(37, 99, 235, .95));
+    color: white;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+  h1 {
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.1;
+    letter-spacing: 0;
+  }
+  .subtle {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 30px;
+    padding: 5px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: #fbfcfe;
+    white-space: nowrap;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--amber);
+  }
+  .status.ready .dot { background: var(--green); }
+  .status.error .dot { background: var(--rose); }
+  .primary { background: var(--blue); color: white; }
+  .success { background: var(--green); color: white; }
+  .danger { color: var(--rose); border-color: #f3bfca; }
+
+  main {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr) minmax(260px, 360px);
+    gap: 12px;
+    padding: 12px;
+  }
+
+  aside, section {
+    min-height: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+
+  .controls {
+    display: grid;
+    grid-template-rows: auto auto auto 1fr;
+    gap: 12px;
+    padding: 12px;
+    overflow: auto;
+  }
+  .field {
+    display: grid;
+    gap: 6px;
+  }
+  label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 650;
+  }
+  textarea, select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fbfcfe;
+    color: var(--ink);
+    padding: 9px;
+  }
+  textarea {
+    min-height: 118px;
+    resize: vertical;
+  }
+  select { min-height: 36px; }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .quick {
+    display: grid;
+    gap: 7px;
+    align-content: start;
+  }
+  .quick button {
+    text-align: left;
+    border-color: var(--line);
+    background: var(--panel-2);
+  }
+  .quick code {
+    color: #315579;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+  }
+
+  .terminal-wrap {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 750;
+  }
+  .head-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .head-actions button {
+    min-height: 28px;
+    padding: 4px 8px;
+    border-color: var(--line);
+  }
+  #term {
+    min-height: 0;
+    padding: 8px;
+    background: var(--terminal);
+  }
+
+  .workspace {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    overflow: hidden;
+  }
+  .score {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-bottom: 1px solid var(--line);
+  }
+  .metric {
+    padding: 9px 10px;
+    border-right: 1px solid var(--line);
+  }
+  .metric:last-child { border-right: 0; }
+  .metric b {
+    display: block;
+    font-size: 18px;
+    line-height: 1.1;
+  }
+  .metric span {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .files {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    min-height: 0;
+  }
+  .file-list {
+    border-right: 1px solid var(--line);
+    background: #f9fbfd;
+    overflow: auto;
+  }
+  .file-list button {
+    width: 100%;
+    min-height: 32px;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+  .file-list button.active {
+    background: #e7eff8;
+    color: var(--ink);
+    font-weight: 700;
+  }
+  pre {
+    margin: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: 10px;
+    white-space: pre-wrap;
+    color: #223044;
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (max-width: 1050px) {
+    main { grid-template-columns: 300px 1fr; }
+    .workspace { grid-column: 1 / -1; min-height: 320px; }
+  }
+  @media (max-width: 720px) {
+    header { align-items: flex-start; }
+    main { grid-template-columns: 1fr; }
+    .controls { grid-template-rows: auto; }
+    .terminal-wrap { min-height: 420px; }
+    .top-actions { justify-content: flex-start; }
+  }
 </style>
 
-<div id="bar">
-  <input id="task" placeholder="task for shprout (e.g. count files in /tmp)" autofocus disabled>
-  <button id="go" disabled>Run</button>
-  <button id="auth" class="auth" hidden>Authorize</button>
-  <span id="status" style="color:#888"></span>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="mark">P</div>
+      <div>
+        <h1>Polli Agent</h1>
+        <div class="subtle">Pollinations CLI in a disposable WebContainer</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="status" class="status"><span class="dot"></span><span>booting</span></span>
+      <button id="auth" class="success" hidden>Browser Key</button>
+      <button id="forget" class="danger" hidden>Forget Key</button>
+      <button id="reset">Reset</button>
+    </div>
+  </header>
+
+  <main>
+    <aside class="controls">
+      <div class="field">
+        <label for="task">Polli Task</label>
+        <textarea id="task">Use polli to generate a short tagline for Pollinations. Save the raw text to polli-result.txt, build demo.html around it, then run the check.</textarea>
+      </div>
+      <div class="field">
+        <label for="model">Model</label>
+        <select id="model">
+          <option value="openai-fast">openai-fast</option>
+          <option value="claude-large">claude-large</option>
+          <option value="openai-large">openai-large</option>
+          <option value="gemini-large">gemini-large</option>
+        </select>
+      </div>
+      <div class="button-row">
+        <button id="run-agent" class="primary" disabled>Run Agent</button>
+        <button id="run-test" disabled>Run Check</button>
+      </div>
+      <div class="quick">
+        <label>Polli CLI</label>
+        <button data-cmd="login" disabled><code>polli auth login</code></button>
+        <button data-cmd="help" disabled><code>polli --help</code></button>
+        <button data-cmd="models" disabled><code>polli models --type text</code></button>
+        <button data-cmd="auth" disabled><code>polli auth status</code></button>
+        <button data-cmd="debug" disabled><code>auth debug</code></button>
+        <button data-cmd="text" disabled><code>polli gen text</code></button>
+      </div>
+    </aside>
+
+    <section class="terminal-wrap">
+      <div class="panel-head">
+        <h2 class="panel-title">Terminal</h2>
+        <div class="head-actions">
+          <button id="clear">Clear</button>
+        </div>
+      </div>
+      <div id="term"></div>
+    </section>
+
+    <section class="workspace">
+      <div class="panel-head">
+        <h2 class="panel-title">Workspace</h2>
+        <div class="subtle" id="selected-file">README.md</div>
+      </div>
+      <div class="score">
+        <div class="metric"><b id="runs">0</b><span>runs</span></div>
+        <div class="metric"><b id="passes">0</b><span>passes</span></div>
+        <div class="metric"><b id="files-changed">0</b><span>changed</span></div>
+      </div>
+      <div class="files">
+        <nav id="file-list" class="file-list"></nav>
+        <pre id="file-view"></pre>
+      </div>
+    </section>
+  </main>
 </div>
-<div id="term"></div>
 
 <script type="module">
   import { Terminal } from 'https://esm.sh/@xterm/xterm@5.5.0';
   import { FitAddon } from 'https://esm.sh/@xterm/addon-fit@0.10.0';
   import { WebContainer } from 'https://esm.sh/@webcontainer/api@1.5.1';
 
-  const APP_KEY = 'pk_xMe0kHLHGca6k7lf';                  // shprout's publishable key
-  const KEY_STORE = 'shprout.apiKey';
-  const POLLI_AUTH = 'https://enter.pollinations.ai/authorize';
-  const POLLI_BASE = 'https://gen.pollinations.ai/v1';
+  const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
+  const KEY_STORE = 'polli.webcontainer.key';
+  const LEGACY_KEY_STORES = ['shprout.apiKey', 'jsprout.apiKey', 'pollinations_api_key'];
+  const POLLI = 'npx -y @pollinations_ai/cli@latest';
+  const SHELL_ENV = { HOME: '/home', PATH: '/usr/local/bin:/usr/bin:/bin' };
+  const files = ['README.md', 'demo.html', 'polli-result.txt', 'check.mjs', 'tiny-agent.mjs'];
+  const starter = {
+    'README.md': '# Polli Agent Workspace\n\nUse `polli` to generate something, then turn it into a tiny demo artifact.\n\nExpected outputs:\n\n- `polli-result.txt` contains raw text from Pollinations.\n- `demo.html` presents that text in a simple page.\n- `node check.mjs` passes.\n',
+    'demo.html': '<!doctype html>\n<meta charset="utf-8">\n<title>Polli demo</title>\n<h1>Waiting for Polli</h1>\n<p>Run the agent to generate this page.</p>\n',
+    'polli-result.txt': '',
+    'check.mjs': "import assert from 'node:assert/strict';\nimport { readFile } from 'node:fs/promises';\n\nconst text = (await readFile('polli-result.txt', 'utf8')).trim();\nconst html = await readFile('demo.html', 'utf8');\n\nassert.ok(text.length >= 12, 'polli-result.txt should contain generated text');\nassert.ok(html.includes(text), 'demo.html should include the generated text');\nassert.ok(/Pollinations|Polli/i.test(html), 'demo.html should mention Polli or Pollinations');\nconsole.log('ok');\n",
+  };
 
-  const term = new Terminal({ convertEol: true, fontSize: 13, theme: { background: '#111' } });
+  const $ = id => document.getElementById(id);
+  const term = new Terminal({
+    convertEol: true,
+    cursorBlink: true,
+    fontSize: 13,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    theme: {
+      background: '#101417',
+      foreground: '#e5edf5',
+      cursor: '#cbd5e1',
+      cyan: '#7dd3fc',
+      green: '#86efac',
+      red: '#fda4af',
+      yellow: '#fde68a',
+    },
+  });
   const fit = new FitAddon();
   term.loadAddon(fit);
-  term.open(document.getElementById('term'));
+  term.open($('term'));
   fit.fit();
   addEventListener('resize', () => fit.fit());
 
-  const status = document.getElementById('status');
-  const taskEl = document.getElementById('task');
-  const goEl = document.getElementById('go');
-  const authEl = document.getElementById('auth');
-  const setStatus = s => status.textContent = s;
-  const log = s => term.write(s + '\r\n');
+  let wc;
+  let ready = false;
+  let selected = 'README.md';
+  let runCount = 0;
+  let passCount = 0;
+  let changed = new Set();
+  let apiKey = loadApiKey();
+  let inputBuffer = '';
+  let inputOpen = false;
+  let commandBusy = false;
+  let polliHomePath = null;
 
-  // BYOP: extract sk_ from URL fragment if redirected back from authorize
-  const frag = new URLSearchParams(location.hash.slice(1));
-  const incomingKey = frag.get('api_key');
-  if (incomingKey) {
-    localStorage.setItem(KEY_STORE, incomingKey);
-    history.replaceState(null, '', location.pathname + location.search);
-  }
-  let apiKey = localStorage.getItem(KEY_STORE);
-
-  function authorize() {
-    const url = new URL(POLLI_AUTH);
-    url.searchParams.set('app_key', APP_KEY);
-    url.searchParams.set('redirect_url', location.origin + location.pathname);
-    location.href = url.toString();
-  }
-  authEl.onclick = authorize;
-
-  if (!apiKey) {
-    authEl.hidden = false;
-    setStatus('not authorized');
-    log('\x1b[33mclick "Authorize" to grant shprout access to your Pollinations balance (BYOP).\x1b[0m');
+  function isPolliKey(key) {
+    return typeof key === 'string' && /^(pk_|sk_|plln_)/.test(key);
   }
 
-  setStatus('booting…');
-  log('\x1b[2mbooting WebContainer…\x1b[0m');
-  const wc = await WebContainer.boot();
-  window.wc = wc;  // expose for probing
+  function maskKey(key) {
+    if (!isPolliKey(key)) return 'invalid key';
+    return `${key.slice(0, 5)}...${key.slice(-6)}`;
+  }
 
-  log('\x1b[2mfetching shprout + shims…\x1b[0m');
-  const [shprout, awkShim, sedShim] = await Promise.all([
-    fetch('/shprout.txt').then(r => r.text()),
-    fetch('/shims/awk').then(r => r.text()),
-    fetch('/shims/sed').then(r => r.text()),
-  ]);
-  await wc.mount({
-    'shprout': { file: { contents: shprout } },
-    'bin': { directory: {
-      'awk': { file: { contents: awkShim } },
-      'sed': { file: { contents: sedShim } },
-    }},
-  });
-  await (await wc.spawn('jsh', ['-c', 'chmod +x shprout bin/awk bin/sed'])).exit;
+  function persistApiKey(key) {
+    if (!isPolliKey(key)) return null;
+    localStorage.setItem(KEY_STORE, key);
+    return key;
+  }
 
-  log('\x1b[2mprobing environment…\x1b[0m');
-  const probe = await wc.spawn('jsh', ['-c', 'pwd; ls bin; echo "PATH-test:"; PATH="$PWD/bin:$PATH" which awk sed; echo ready'], {
-    env: { PATH: '/usr/local/bin:/usr/bin:/bin' }
-  });
-  probe.output.pipeTo(new WritableStream({ write: c => term.write(c) }));
-  await probe.exit;
+  function getKeyFromUrl() {
+    const sources = [
+      new URLSearchParams(location.hash.startsWith('#') ? location.hash.slice(1) : location.hash),
+      new URLSearchParams(location.search.startsWith('?') ? location.search.slice(1) : location.search),
+    ];
+    const key = sources
+      .map(params => params.get('api_key') || params.get('key') || params.get('token'))
+      .find(isPolliKey);
+    if (!key) return null;
+    persistApiKey(key);
+    history.replaceState(null, '', location.pathname);
+    return key;
+  }
 
-  setStatus(apiKey ? 'ready' : 'awaiting authorization');
-  log('\r\n\x1b[32mWebContainer ready.\x1b[0m' + (apiKey ? ' type a task and hit Run.\r\n' : ' authorize first.\r\n'));
+  function loadApiKey() {
+    const incoming = getKeyFromUrl();
+    if (incoming) return incoming;
+    for (const store of [KEY_STORE, ...LEGACY_KEY_STORES]) {
+      const key = localStorage.getItem(store);
+      if (isPolliKey(key)) return persistApiKey(key);
+    }
+    return null;
+  }
 
-  if (apiKey) { taskEl.disabled = false; goEl.disabled = false; taskEl.focus(); }
+  function setStatus(text, kind = '') {
+    const el = $('status');
+    el.className = `status ${kind}`;
+    el.querySelector('span:last-child').textContent = text;
+  }
 
-  goEl.onclick = run;
-  taskEl.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+  function write(text = '') {
+    term.write(`${text}\r\n`);
+  }
 
-  async function run() {
-    const task = taskEl.value.trim();
-    if (!task || !apiKey) return;
-    setStatus('running…');
-    goEl.disabled = true;
-    log(`\r\n\x1b[36m$ shprout "${task}"\x1b[0m`);
-    const proc = await wc.spawn('bash', ['-c', 'PATH="$PWD/bin:$PATH" exec bash shprout "$1"', '--', task], {
-      env: {
-        OPENAI_API_KEY: apiKey,
-        MODEL: 'claude-large',
-        OPENAI_BASE_URL: POLLI_BASE,
-      },
+  function commandLine(cmd) {
+    write(`\x1b[36m$ ${cmd}\x1b[0m`);
+  }
+
+  function prompt() {
+    if (!ready || commandBusy) return;
+    inputOpen = true;
+    inputBuffer = '';
+    term.write('\r\n\x1b[36m$ \x1b[0m');
+  }
+
+  function closePromptLine() {
+    if (!inputOpen) return;
+    inputOpen = false;
+    term.write('\r\n');
+  }
+
+  function setEnabled(value) {
+    ready = value;
+    $('run-agent').disabled = !value;
+    $('run-test').disabled = !value;
+    document.querySelectorAll('[data-cmd]').forEach(btn => {
+      btn.disabled = !value;
     });
-    proc.output.pipeTo(new WritableStream({ write: c => term.write(c) }));
-    const code = await proc.exit;
-    log(`\x1b[2m[exit ${code}]\x1b[0m`);
-    setStatus('ready');
-    goEl.disabled = false;
   }
+
+  function updateAuthUi() {
+    $('auth').hidden = !!apiKey;
+    $('forget').hidden = !apiKey;
+    if (ready) setEnabled(true);
+  }
+
+  function joinPath(dir, name) {
+    return `${dir.replace(/\/+$/, '')}/${name}`;
+  }
+
+  async function shellResult(cmd) {
+    if (!wc) return null;
+    const proc = await wc.spawn('jsh', ['-c', cmd], { env: SHELL_ENV });
+    let text = '';
+    await proc.output.pipeTo(new WritableStream({ write: data => { text += data; } }));
+    return { code: await proc.exit, text };
+  }
+
+  async function nodeResult(script, env = {}) {
+    if (!wc) return null;
+    const proc = await wc.spawn('node', ['-e', script], { env: { ...SHELL_ENV, ...env } });
+    let text = '';
+    await proc.output.pipeTo(new WritableStream({ write: data => { text += data; } }));
+    return { code: await proc.exit, text };
+  }
+
+  async function getPolliHome() {
+    if (polliHomePath) return polliHomePath;
+    const result = await nodeResult("process.stdout.write(require('node:os').homedir())");
+    const home = result?.code === 0 ? result.text.trim().split(/\r?\n/).pop() : '';
+    polliHomePath = home && home.startsWith('/') ? home.replace(/\/+$/, '') : '/home';
+    return polliHomePath;
+  }
+
+  async function syncCredentials({ announce = false } = {}) {
+    if (!wc) return false;
+    if (!apiKey) {
+      if (announce) write('\x1b[2mBrowser Key is not connected yet, so Polli CLI has no credential to read.\x1b[0m');
+      return false;
+    }
+    const keyType = apiKey.startsWith('sk_') || apiKey.startsWith('plln_sk_') ? 'sk' : 'pk';
+    const payload = JSON.stringify({ apiKey, keyType }, null, 2);
+    const home = await getPolliHome();
+    const homeDir = joinPath(home, '.pollinations');
+    const seed = await nodeResult(`
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const dir = path.join(os.homedir(), '.pollinations');
+const file = path.join(dir, 'credentials.json');
+const payload = Buffer.from(process.env.POLLI_CREDENTIALS_B64, 'base64').toString('utf8');
+fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+fs.writeFileSync(file, payload, { encoding: 'utf8', mode: 0o600 });
+const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+process.stdout.write(JSON.stringify({
+  home: os.homedir(),
+  file,
+  exists: fs.existsSync(file),
+  hasApiKey: typeof saved.apiKey === 'string' && saved.apiKey.length > 10,
+  keyType: saved.keyType || null,
+  prefix: typeof saved.apiKey === 'string' ? saved.apiKey.slice(0, 5) : null
+}));
+`, { POLLI_CREDENTIALS_B64: btoa(payload) });
+    let info = null;
+    try {
+      info = seed?.code === 0 ? JSON.parse(seed.text.trim()) : null;
+    } catch {}
+    const wroteHome = !!info?.hasApiKey;
+    try { await wc.fs.rm('.pollinations/credentials.json'); } catch {}
+    if (announce) {
+      const path = info?.file || joinPath(homeDir, 'credentials.json');
+      const msg = wroteHome
+        ? `Browser Key synced for Polli CLI at ${path} (${maskKey(apiKey)}).`
+        : `Browser Key found, but Polli credential verification failed at ${path}.`;
+      write(`\x1b[2m${msg}\x1b[0m`);
+    }
+    return wroteHome;
+  }
+
+  async function mountWorkspace() {
+    const agent = await fetch('/tiny-agent.mjs').then(r => r.text());
+    await wc.mount({
+      'README.md': { file: { contents: starter['README.md'] } },
+      'demo.html': { file: { contents: starter['demo.html'] } },
+      'polli-result.txt': { file: { contents: starter['polli-result.txt'] } },
+      'check.mjs': { file: { contents: starter['check.mjs'] } },
+      'tiny-agent.mjs': { file: { contents: agent } },
+    });
+  }
+
+  async function spawnShell(cmd, { label = cmd, echo = true } = {}) {
+    if (!wc || !ready) return null;
+    await syncCredentials();
+    commandBusy = true;
+    setStatus('running');
+    if (echo) {
+      closePromptLine();
+      commandLine(label);
+    }
+    try {
+      const proc = await wc.spawn('jsh', ['-c', cmd], { env: SHELL_ENV });
+      proc.output.pipeTo(new WritableStream({ write: data => term.write(data) }));
+      const code = await proc.exit;
+      write(`\x1b[2m[exit ${code}]\x1b[0m`);
+      setStatus('ready', 'ready');
+      await refreshFiles();
+      return code;
+    } finally {
+      commandBusy = false;
+      prompt();
+    }
+  }
+
+  async function hasPolliAuth() {
+    await syncCredentials();
+    const status = await shellResult(`${POLLI} --json auth status`);
+    if (!status || status.code !== 0) return false;
+    try {
+      return JSON.parse(status.text).authenticated === true;
+    } catch {
+      return /"authenticated"\s*:\s*true/.test(status.text);
+    }
+  }
+
+  async function runTypedCommand() {
+    const cmd = inputBuffer.trim();
+    inputOpen = false;
+    inputBuffer = '';
+    term.write('\r\n');
+    if (!cmd) {
+      prompt();
+      return;
+    }
+    await spawnShell(cmd, { echo: false });
+  }
+
+  async function runTests({ count = true } = {}) {
+    const code = await spawnShell('node check.mjs', { label: 'node check.mjs' });
+    if (count && code !== null) {
+      runCount += 1;
+      if (code === 0) passCount += 1;
+      updateMetrics();
+    }
+    return code;
+  }
+
+  async function runAgent() {
+    await syncCredentials();
+    if (!(await hasPolliAuth())) {
+      write('\x1b[33mThis tiny agent uses Polli CLI as its LLM backend, but Polli is not authenticated from /home/.pollinations/credentials.json.\x1b[0m');
+      write('\x1b[33mClick Browser Key or run polli auth login --no-browser yourself, then press Run Agent again.\x1b[0m');
+      return;
+    }
+    runCount += 1;
+    updateMetrics();
+    const task = $('task').value.trim();
+    const model = $('model').value;
+    const quotedTask = JSON.stringify(task);
+    const quotedModel = JSON.stringify(model);
+    const code = await spawnShell(`MODEL=${quotedModel} POLLI=${JSON.stringify(POLLI)} node tiny-agent.mjs ${quotedTask}`, {
+      label: `MODEL=${model} node tiny-agent.mjs "${task.replace(/"/g, '\\"')}"`,
+    });
+    const testCode = await runTests({ count: false });
+    if (code === 0 && testCode === 0) passCount += 1;
+    updateMetrics();
+  }
+
+  async function refreshFiles() {
+    if (!wc) return;
+    const list = $('file-list');
+    list.textContent = '';
+    for (const file of files) {
+      const btn = document.createElement('button');
+      btn.textContent = file;
+      btn.className = file === selected ? 'active' : '';
+      btn.onclick = async () => {
+        selected = file;
+        await refreshFiles();
+      };
+      list.appendChild(btn);
+    }
+    try {
+      const text = await wc.fs.readFile(selected, 'utf-8');
+      $('file-view').textContent = text;
+      $('selected-file').textContent = selected;
+      changed = new Set();
+      for (const [path, original] of Object.entries(starter)) {
+        try {
+          const current = await wc.fs.readFile(path, 'utf-8');
+          if (current !== original) changed.add(path);
+        } catch {
+          changed.add(path);
+        }
+      }
+      updateMetrics();
+    } catch (err) {
+      $('file-view').textContent = String(err);
+    }
+  }
+
+  function updateMetrics() {
+    $('runs').textContent = runCount;
+    $('passes').textContent = passCount;
+    $('files-changed').textContent = changed.size;
+  }
+
+  async function resetWorkspace() {
+    if (!wc) return;
+    setEnabled(false);
+    setStatus('resetting');
+    await mountWorkspace();
+    await syncCredentials({ announce: true });
+    changed.clear();
+    await refreshFiles();
+    write('\x1b[2mworkspace reset\x1b[0m');
+    setStatus('ready', 'ready');
+    setEnabled(true);
+  }
+
+  $('auth').onclick = () => {
+    const url = new URL('https://enter.pollinations.ai/authorize');
+    const redirect = location.origin + location.pathname;
+    url.searchParams.set('client_id', APP_KEY);
+    url.searchParams.set('app_key', APP_KEY);
+    url.searchParams.set('redirect_uri', redirect);
+    url.searchParams.set('redirect_url', redirect);
+    url.searchParams.set('scope', 'generate keys usage');
+    location.href = url.toString();
+  };
+
+  $('forget').onclick = async () => {
+    for (const store of [KEY_STORE, ...LEGACY_KEY_STORES]) localStorage.removeItem(store);
+    apiKey = null;
+    if (wc) {
+      const home = await getPolliHome();
+      try { await wc.fs.rm('.pollinations/credentials.json'); } catch {}
+      try { await wc.fs.rm('/home/.pollinations/credentials.json'); } catch {}
+      try { await wc.fs.rm(joinPath(joinPath(home, '.pollinations'), 'credentials.json')); } catch {}
+    }
+    updateAuthUi();
+    write('\x1b[2mcredential removed from browser storage and WebContainer\x1b[0m');
+  };
+
+  $('reset').onclick = resetWorkspace;
+  $('clear').onclick = () => term.clear();
+  $('run-test').onclick = () => runTests();
+  $('run-agent').onclick = runAgent;
+
+  term.onData(data => {
+    if (!ready || commandBusy) return;
+    if (!inputOpen) prompt();
+    for (const ch of data) {
+      if (ch === '\r') {
+        runTypedCommand();
+        return;
+      }
+      if (ch === '\u007f') {
+        if (inputBuffer.length) {
+          inputBuffer = inputBuffer.slice(0, -1);
+          term.write('\b \b');
+        }
+        continue;
+      }
+      if (ch >= ' ' && ch !== '\u007f') {
+        inputBuffer += ch;
+        term.write(ch);
+      }
+    }
+  });
+
+  document.querySelector('[data-cmd="help"]').onclick = () =>
+    spawnShell(`${POLLI} --help`, { label: 'npx -y @pollinations_ai/cli --help' });
+  document.querySelector('[data-cmd="login"]').onclick = () =>
+    spawnShell(`${POLLI} auth login --no-browser`, { label: 'polli auth login --no-browser' });
+  document.querySelector('[data-cmd="models"]').onclick = () =>
+    spawnShell(`${POLLI} models --type text | head -25`, { label: 'polli models --type text | head -25' });
+  document.querySelector('[data-cmd="auth"]').onclick = async () => {
+    await syncCredentials({ announce: true });
+    return spawnShell(`${POLLI} --json auth status`, { label: 'polli --json auth status' });
+  };
+  document.querySelector('[data-cmd="debug"]').onclick = async () => {
+    await syncCredentials({ announce: true });
+    const script = `
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const file = path.join(os.homedir(), '.pollinations', 'credentials.json');
+const info = { home: os.homedir(), file, exists: fs.existsSync(file) };
+if (info.exists) {
+  try {
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    info.hasApiKey = typeof saved.apiKey === 'string' && saved.apiKey.length > 10;
+    info.keyType = saved.keyType || null;
+  } catch (err) {
+    info.error = err.message;
+  }
+}
+console.log(JSON.stringify(info, null, 2));
+`;
+    return spawnShell(`node -e ${JSON.stringify(script)} && ${POLLI} --json auth status`, {
+      label: 'auth debug (no key printed)',
+    });
+  };
+  document.querySelector('[data-cmd="text"]').onclick = async () => {
+    await syncCredentials({ announce: true });
+    return spawnShell(`${POLLI} gen text "Say hello from inside WebContainer in one short sentence." --model ${$('model').value} --no-stream`, {
+      label: `polli gen text --model ${$('model').value}`,
+    });
+  };
+
+  async function boot() {
+    try {
+      setEnabled(false);
+      updateAuthUi();
+      if (!crossOriginIsolated) {
+        throw new Error(`WebContainer needs cross-origin isolation. Open ${location.href} in a normal browser window.`);
+      }
+      write('\x1b[2mbooting WebContainer...\x1b[0m');
+      wc = await WebContainer.boot();
+      window.wc = wc;
+      write('\x1b[2mmounting demo workspace...\x1b[0m');
+      await mountWorkspace();
+      await syncCredentials({ announce: true });
+      await refreshFiles();
+      write('\x1b[32mready\x1b[0m');
+      write('Click the terminal and type commands, or use the buttons.');
+      setStatus('ready', 'ready');
+      setEnabled(true);
+      prompt();
+    } catch (err) {
+      console.error(err);
+      write(`\x1b[31m${err.message || err}\x1b[0m`);
+      setStatus('error', 'error');
+    }
+  }
+
+  boot();
 </script>

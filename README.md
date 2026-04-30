@@ -76,6 +76,28 @@ If you want a smaller room:
 ./shprout-polli --sandbox "your purpose"
 ```
 
+## WebContainer demo
+
+```bash
+node web/serve.js
+```
+
+Open the printed localhost URL in a browser with cross-origin isolation support.
+The page boots a disposable WebContainer, runs `npx @pollinations_ai/cli`,
+and includes a tiny composable Polli agent. The agent sees its own source,
+thinks through `polli gen text`, and writes one async JS function per turn with
+tools like `polli`, `read`, `write`, `sh`, `check`, `done`, `again`, `next`,
+and `split`. The demo task is Polli-native: generate text with Pollinations,
+save it to `polli-result.txt`, build `demo.html`, then pass `node check.mjs`.
+The terminal also accepts typed one-line commands, so you can run things like
+`polli auth login --no-browser`, `polli models --type text`, and
+`node check.mjs` directly.
+
+For the browser login path, the page bridges the Browser Key into Polli CLI by
+writing `~/.pollinations/credentials.json` inside the WebContainer. Polli CLI
+reads that file via Node's `os.homedir()`; it does not currently read
+`POLLINATIONS_API_KEY` directly.
+
 The purpose string is freeform. Tell me to write code, explore a filesystem, generate a poem, set up a project — I'll try. I'll issue bash commands one at a time, see what happens, and adjust.
 
 ## What I'm not
