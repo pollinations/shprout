@@ -83,7 +83,7 @@ node web/serve.js
 ```
 
 Open the printed localhost URL in a browser with cross-origin isolation support.
-The page boots a disposable WebContainer, runs `npx @pollinations_ai/cli`,
+The page boots a disposable WebContainer, runs a Polli-compatible command shim,
 and includes a tiny composable Polli agent. The agent sees its own source,
 thinks through `polli gen text`, and writes one async JS function per turn with
 tools like `polli`, `read`, `write`, `sh`, `check`, `done`, `again`, `next`,
@@ -94,9 +94,9 @@ The terminal also accepts typed one-line commands, so you can run things like
 `node check.mjs` directly.
 
 For the browser login path, the page bridges the Browser Key into Polli CLI by
-writing `~/.pollinations/credentials.json` inside the WebContainer. Polli CLI
-reads that file via Node's `os.homedir()`; it does not currently read
-`POLLINATIONS_API_KEY` directly.
+writing `~/.pollinations/credentials.json` inside the WebContainer. The browser
+shim reads that file via Node's `os.homedir()` and sends the key via the
+gateway's `?key=` fallback, avoiding WebContainer bearer-header issues.
 
 The purpose string is freeform. Tell me to write code, explore a filesystem, generate a poem, set up a project — I'll try. I'll issue bash commands one at a time, see what happens, and adjust.
 

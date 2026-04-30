@@ -376,9 +376,9 @@
   const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
   const KEY_STORE = 'polli.webcontainer.key';
   const LEGACY_KEY_STORES = ['shprout.apiKey', 'jsprout.apiKey', 'pollinations_api_key'];
-  const POLLI = 'npx -y @pollinations_ai/cli@latest';
+  const POLLI = 'node polli-web.mjs';
   const SHELL_ENV = { HOME: '/home', PATH: '/usr/local/bin:/usr/bin:/bin' };
-  const files = ['README.md', 'demo.html', 'polli-result.txt', 'check.mjs', 'tiny-agent.mjs'];
+  const files = ['README.md', 'demo.html', 'polli-result.txt', 'check.mjs', 'tiny-agent.mjs', 'polli-web.mjs'];
   const starter = {
     'README.md': '# Polli Agent Workspace\n\nUse `polli` to generate something, then turn it into a tiny demo artifact.\n\nExpected outputs:\n\n- `polli-result.txt` contains raw text from Pollinations.\n- `demo.html` presents that text in a simple page.\n- `node check.mjs` passes.\n',
     'demo.html': '<!doctype html>\n<meta charset="utf-8">\n<title>Polli demo</title>\n<h1>Waiting for Polli</h1>\n<p>Run the agent to generate this page.</p>\n',
@@ -575,13 +575,17 @@ process.stdout.write(JSON.stringify({
   }
 
   async function mountWorkspace() {
-    const agent = await fetch('/tiny-agent.mjs').then(r => r.text());
+    const [agent, polli] = await Promise.all([
+      fetch('/tiny-agent.mjs').then(r => r.text()),
+      fetch('/polli-web.mjs').then(r => r.text()),
+    ]);
     await wc.mount({
       'README.md': { file: { contents: starter['README.md'] } },
       'demo.html': { file: { contents: starter['demo.html'] } },
       'polli-result.txt': { file: { contents: starter['polli-result.txt'] } },
       'check.mjs': { file: { contents: starter['check.mjs'] } },
       'tiny-agent.mjs': { file: { contents: agent } },
+      'polli-web.mjs': { file: { contents: polli } },
     });
   }
 
@@ -766,7 +770,7 @@ process.stdout.write(JSON.stringify({
   });
 
   document.querySelector('[data-cmd="help"]').onclick = () =>
-    spawnShell(`${POLLI} --help`, { label: 'npx -y @pollinations_ai/cli --help' });
+    spawnShell(`${POLLI} --help`, { label: 'polli --help' });
   document.querySelector('[data-cmd="login"]').onclick = () =>
     spawnShell(`${POLLI} auth login --no-browser`, { label: 'polli auth login --no-browser' });
   document.querySelector('[data-cmd="models"]').onclick = () =>
