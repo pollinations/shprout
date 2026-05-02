@@ -508,7 +508,7 @@
   }
 
   function shellPath() {
-    return `/.bin:${wc?.path || '/usr/local/bin:/usr/bin:/bin'}`;
+    return `.bin:/.bin:${wc?.path || '/usr/local/bin:/usr/bin:/bin'}`;
   }
 
   function shellEnv() {
@@ -543,7 +543,8 @@
       fetch('/tiny-agent.mjs').then(r => r.text()),
       fetch('/polli-web.mjs').then(r => r.text()),
     ]);
-    const polliBin = '#!/bin/sh\nnode /polli-web.mjs "$@"\n';
+    const polliScript = `${wc.workdir || '.'}/polli-web.mjs`;
+    const polliBin = `#!/bin/sh\nnode ${JSON.stringify(polliScript)} "$@"\n`;
     await wc.mount({
       'README.md': { file: { contents: starter['README.md'] } },
       'demo.html': { file: { contents: starter['demo.html'] } },
@@ -555,8 +556,12 @@
         'polli': { file: { contents: polliBin } },
       }},
     });
-    const chmod = await shellResult('chmod +x .bin/polli || chmod +x /.bin/polli');
+    await wc.fs.mkdir('/.bin', { recursive: true });
+    await wc.fs.writeFile('/.bin/polli', polliBin);
+    const chmod = await shellResult('chmod +x .bin/polli /.bin/polli');
     if (!chmod || chmod.code !== 0) throw new Error(`could not make polli executable: ${chmod?.text || 'unknown error'}`);
+    const polliCheck = await shellResult('polli --help');
+    if (!polliCheck || polliCheck.code !== 0) throw new Error(`polli is not available on PATH: ${polliCheck?.text || 'unknown error'}`);
   }
 
   async function spawnShell(cmd, { label = cmd, echo = true } = {}) {
