@@ -376,8 +376,8 @@
   const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
   const KEY_STORE = 'polli.webcontainer.key';
   const LEGACY_KEY_STORES = ['shprout.apiKey', 'jsprout.apiKey', 'pollinations_api_key'];
-  const POLLI = 'node polli-web.mjs';
-  const SHELL_ENV = { HOME: '/home', PATH: '/usr/local/bin:/usr/bin:/bin' };
+  const POLLI = 'polli';
+  const SHELL_ENV = { HOME: '/home', PATH: '/.bin:/usr/local/bin:/usr/bin:/bin' };
   const files = ['README.md', 'demo.html', 'polli-result.txt', 'check.mjs', 'tiny-agent.mjs', 'polli-web.mjs'];
   const starter = {
     'README.md': '# Polli Agent Workspace\n\nUse `polli` to generate something, then turn it into a tiny demo artifact.\n\nExpected outputs:\n\n- `polli-result.txt` contains raw text from Pollinations.\n- `demo.html` presents that text in a simple page.\n- `node check.mjs` passes.\n',
@@ -579,6 +579,7 @@ process.stdout.write(JSON.stringify({
       fetch('/tiny-agent.mjs').then(r => r.text()),
       fetch('/polli-web.mjs').then(r => r.text()),
     ]);
+    const polliBin = '#!/bin/bash\nexec node /polli-web.mjs "$@"\n';
     await wc.mount({
       'README.md': { file: { contents: starter['README.md'] } },
       'demo.html': { file: { contents: starter['demo.html'] } },
@@ -586,7 +587,11 @@ process.stdout.write(JSON.stringify({
       'check.mjs': { file: { contents: starter['check.mjs'] } },
       'tiny-agent.mjs': { file: { contents: agent } },
       'polli-web.mjs': { file: { contents: polli } },
+      '.bin': { directory: {
+        'polli': { file: { contents: polliBin } },
+      }},
     });
+    await shellResult('chmod +x /.bin/polli');
   }
 
   async function spawnShell(cmd, { label = cmd, echo = true } = {}) {
