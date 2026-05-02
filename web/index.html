@@ -511,12 +511,28 @@
     return `.bin:/.bin:${wc?.path || '/usr/local/bin:/usr/bin:/bin'}`;
   }
 
+  function polliScript() {
+    return `${wc?.workdir || '.'}/polli-web.mjs`;
+  }
+
+  function polliCommand() {
+    return `node ${JSON.stringify(polliScript())}`;
+  }
+
+  function polliExecCommand() {
+    return `node ${polliScript()}`;
+  }
+
+  function expandPolliCommand(cmd) {
+    return cmd.replace(/(^|[;&|]\s*)polli(?=\s|$)/g, (_, prefix) => `${prefix}${polliCommand()}`);
+  }
+
   function shellEnv() {
     return { HOME, PATH: shellPath() };
   }
 
   function shellCommand(cmd) {
-    return `export HOME=${JSON.stringify(HOME)} PATH=${JSON.stringify(shellPath())}; ${cmd}`;
+    return `export HOME=${JSON.stringify(HOME)} PATH=${JSON.stringify(shellPath())}; ${expandPolliCommand(cmd)}`;
   }
 
   async function syncCredentials({ announce = false } = {}) {
@@ -543,8 +559,7 @@
       fetch('/tiny-agent.mjs').then(r => r.text()),
       fetch('/polli-web.mjs').then(r => r.text()),
     ]);
-    const polliScript = `${wc.workdir || '.'}/polli-web.mjs`;
-    const polliBin = `#!/bin/sh\nnode ${JSON.stringify(polliScript)} "$@"\n`;
+    const polliBin = `#!/bin/sh\n${polliCommand()} "$@"\n`;
     await wc.mount({
       'README.md': { file: { contents: starter['README.md'] } },
       'demo.html': { file: { contents: starter['demo.html'] } },
@@ -632,7 +647,7 @@
     const model = $('model').value;
     const quotedTask = JSON.stringify(task);
     const quotedModel = JSON.stringify(model);
-    const code = await spawnShell(`MODEL=${quotedModel} POLLI=${JSON.stringify(POLLI)} node tiny-agent.mjs ${quotedTask}`, {
+    const code = await spawnShell(`MODEL=${quotedModel} POLLI=${JSON.stringify(polliExecCommand())} node tiny-agent.mjs ${quotedTask}`, {
       label: `MODEL=${model} node tiny-agent.mjs "${task.replace(/"/g, '\\"')}"`,
     });
     const testCode = await runTests({ count: false });

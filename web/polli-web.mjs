@@ -18,7 +18,7 @@ process.stdout.on('error', error => {
 
 let args = process.argv.slice(2);
 const json = args.includes('--json');
-args = args.filter(arg => arg !== '--json');
+args = args.filter(arg => arg !== '--json' && arg !== '');
 
 const out = value => {
   if (typeof value === 'string') process.stdout.write(value.endsWith('\n') ? value : `${value}\n`);

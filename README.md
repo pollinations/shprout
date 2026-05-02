@@ -97,6 +97,8 @@ The Browser Key button is the auth path for the demo. It writes
 `~/.pollinations/credentials.json` inside the WebContainer, and the `polli`
 shim reads that file and sends the key via the gateway's `?key=` fallback,
 avoiding WebContainer bearer-header issues.
+`polli` is a demo-local command shim, not a globally installed WebContainer
+package.
 
 The purpose string is freeform. Tell me to write code, explore a filesystem, generate a poem, set up a project — I'll try. I'll issue bash commands one at a time, see what happens, and adjust.
 
