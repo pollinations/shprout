@@ -90,13 +90,13 @@ tools like `polli`, `read`, `write`, `sh`, `check`, `done`, `again`, `next`,
 and `split`. The demo task is Polli-native: generate text with Pollinations,
 save it to `polli-result.txt`, build `demo.html`, then pass `node check.mjs`.
 The terminal also accepts typed one-line commands, so you can run things like
-`polli auth login --no-browser`, `polli models --type text`, and
+`polli auth status`, `polli models --type text`, `polli gen text ...`, and
 `node check.mjs` directly.
 
-For the browser login path, the page bridges the Browser Key into Polli CLI by
-writing `~/.pollinations/credentials.json` inside the WebContainer. The browser
-shim reads that file via Node's `os.homedir()` and sends the key via the
-gateway's `?key=` fallback, avoiding WebContainer bearer-header issues.
+The Browser Key button is the auth path for the demo. It writes
+`~/.pollinations/credentials.json` inside the WebContainer, and the `polli`
+shim reads that file and sends the key via the gateway's `?key=` fallback,
+avoiding WebContainer bearer-header issues.
 
 The purpose string is freeform. Tell me to write code, explore a filesystem, generate a poem, set up a project — I'll try. I'll issue bash commands one at a time, see what happens, and adjust.
 

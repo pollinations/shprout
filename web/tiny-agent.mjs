@@ -1,4 +1,4 @@
-// polli-agent — a composable coding agent built around the Pollinations CLI.
+// polli-agent - a composable coding agent built around the polli command.
 //
 // The outer loop thinks by running:
 //   polli gen text "<self + log>" --model $MODEL --no-stream
@@ -41,7 +41,7 @@ const AsyncFunction = (async () => {}).constructor;
 const self = new URL(import.meta.url);
 const sys = await fs.readFile(self, 'utf-8');
 
-const polliCommand = process.env.POLLI || 'npx -y @pollinations_ai/cli@latest';
+const polliCommand = process.env.POLLI || 'polli';
 const polliParts = polliCommand.split(/\s+/).filter(Boolean);
 const model = process.env.MODEL || 'openai-fast';
 const rootTask = process.argv.slice(2).join(' ') || 'Use polli to generate a small demo artifact.';
@@ -98,7 +98,7 @@ const chat = async log => {
   );
   if (result.code === 0) return result.stdout.trim();
   const message = (result.stderr || result.stdout || 'polli command failed').trim();
-  throw new Error(`${message}\n\nRun polli auth login --no-browser in this terminal, then try again.`);
+  throw new Error(`${message}\n\nClick Browser Key in the demo, then try again.`);
 };
 
 const extract = response =>
@@ -179,12 +179,5 @@ const step = async (log, depth = 0) => {
     await step(spec?.task ? `${nextLog}<task>${spec.task}</task>\n` : nextLog, depth + 1);
   }
 };
-
-if (/\bpolli\s+(auth\s+)?login\b/i.test(rootTask)) {
-  console.log('$ polli auth login --no-browser');
-  const login = await polli('auth', 'login', '--no-browser');
-  process.stdout.write(login.text);
-  process.exit(login.code);
-}
 
 await step(await start(rootTask));

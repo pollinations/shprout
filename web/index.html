@@ -299,7 +299,7 @@
       <div class="mark">P</div>
       <div>
         <h1>Polli Agent</h1>
-        <div class="subtle">Pollinations CLI in a disposable WebContainer</div>
+        <div class="subtle">Polli command shim in a disposable WebContainer</div>
       </div>
     </div>
     <div class="top-actions">
@@ -330,12 +330,10 @@
         <button id="run-test" disabled>Run Check</button>
       </div>
       <div class="quick">
-        <label>Polli CLI</label>
-        <button data-cmd="login" disabled><code>polli auth login</code></button>
+        <label>polli commands</label>
         <button data-cmd="help" disabled><code>polli --help</code></button>
         <button data-cmd="models" disabled><code>polli models --type text</code></button>
         <button data-cmd="auth" disabled><code>polli auth status</code></button>
-        <button data-cmd="debug" disabled><code>auth debug</code></button>
         <button data-cmd="text" disabled><code>polli gen text</code></button>
       </div>
     </aside>
@@ -376,8 +374,10 @@
   const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
   const KEY_STORE = 'polli.webcontainer.key';
   const LEGACY_KEY_STORES = ['shprout.apiKey', 'jsprout.apiKey', 'pollinations_api_key'];
+  const HOME = '/home';
+  const CREDS_FILE = `${HOME}/.pollinations/credentials.json`;
   const POLLI = 'polli';
-  const SHELL_ENV = { HOME: '/home', PATH: '/.bin:/usr/local/bin:/usr/bin:/bin' };
+  const SHELL_ENV = { HOME, PATH: '/.bin:/usr/local/bin:/usr/bin:/bin' };
   const files = ['README.md', 'demo.html', 'polli-result.txt', 'check.mjs', 'tiny-agent.mjs', 'polli-web.mjs'];
   const starter = {
     'README.md': '# Polli Agent Workspace\n\nUse `polli` to generate something, then turn it into a tiny demo artifact.\n\nExpected outputs:\n\n- `polli-result.txt` contains raw text from Pollinations.\n- `demo.html` presents that text in a simple page.\n- `node check.mjs` passes.\n',
@@ -418,7 +418,6 @@
   let inputBuffer = '';
   let inputOpen = false;
   let commandBusy = false;
-  let polliHomePath = null;
 
   function isPolliKey(key) {
     return typeof key === 'string' && /^(pk_|sk_|plln_)/.test(key);
@@ -501,10 +500,6 @@
     if (ready) setEnabled(true);
   }
 
-  function joinPath(dir, name) {
-    return `${dir.replace(/\/+$/, '')}/${name}`;
-  }
-
   async function shellResult(cmd) {
     if (!wc) return null;
     const proc = await wc.spawn('jsh', ['-c', cmd], { env: SHELL_ENV });
@@ -513,65 +508,23 @@
     return { code: await proc.exit, text };
   }
 
-  async function nodeResult(script, env = {}) {
-    if (!wc) return null;
-    const proc = await wc.spawn('node', ['-e', script], { env: { ...SHELL_ENV, ...env } });
-    let text = '';
-    await proc.output.pipeTo(new WritableStream({ write: data => { text += data; } }));
-    return { code: await proc.exit, text };
-  }
-
-  async function getPolliHome() {
-    if (polliHomePath) return polliHomePath;
-    const result = await nodeResult("process.stdout.write(require('node:os').homedir())");
-    const home = result?.code === 0 ? result.text.trim().split(/\r?\n/).pop() : '';
-    polliHomePath = home && home.startsWith('/') ? home.replace(/\/+$/, '') : '/home';
-    return polliHomePath;
-  }
-
   async function syncCredentials({ announce = false } = {}) {
     if (!wc) return false;
     if (!apiKey) {
-      if (announce) write('\x1b[2mBrowser Key is not connected yet, so Polli CLI has no credential to read.\x1b[0m');
+      if (announce) write('\x1b[2mBrowser Key is not connected yet, so polli has no credential to read.\x1b[0m');
       return false;
     }
     const keyType = apiKey.startsWith('sk_') || apiKey.startsWith('plln_sk_') ? 'sk' : 'pk';
     const payload = JSON.stringify({ apiKey, keyType }, null, 2);
-    const home = await getPolliHome();
-    const homeDir = joinPath(home, '.pollinations');
-    const seed = await nodeResult(`
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const dir = path.join(os.homedir(), '.pollinations');
-const file = path.join(dir, 'credentials.json');
-const payload = Buffer.from(process.env.POLLI_CREDENTIALS_B64, 'base64').toString('utf8');
-fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-fs.writeFileSync(file, payload, { encoding: 'utf8', mode: 0o600 });
-const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-process.stdout.write(JSON.stringify({
-  home: os.homedir(),
-  file,
-  exists: fs.existsSync(file),
-  hasApiKey: typeof saved.apiKey === 'string' && saved.apiKey.length > 10,
-  keyType: saved.keyType || null,
-  prefix: typeof saved.apiKey === 'string' ? saved.apiKey.slice(0, 5) : null
-}));
-`, { POLLI_CREDENTIALS_B64: btoa(payload) });
-    let info = null;
     try {
-      info = seed?.code === 0 ? JSON.parse(seed.text.trim()) : null;
-    } catch {}
-    const wroteHome = !!info?.hasApiKey;
-    try { await wc.fs.rm('.pollinations/credentials.json'); } catch {}
-    if (announce) {
-      const path = info?.file || joinPath(homeDir, 'credentials.json');
-      const msg = wroteHome
-        ? `Browser Key synced for Polli CLI at ${path} (${maskKey(apiKey)}).`
-        : `Browser Key found, but Polli credential verification failed at ${path}.`;
-      write(`\x1b[2m${msg}\x1b[0m`);
+      await wc.fs.mkdir(`${HOME}/.pollinations`, { recursive: true });
+      await wc.fs.writeFile(CREDS_FILE, payload);
+      if (announce) write(`\x1b[2mBrowser Key synced for polli at ${CREDS_FILE} (${maskKey(apiKey)}).\x1b[0m`);
+      return true;
+    } catch (err) {
+      if (announce) write(`\x1b[31mBrowser Key found, but writing ${CREDS_FILE} failed: ${err.message || err}\x1b[0m`);
+      return false;
     }
-    return wroteHome;
   }
 
   async function mountWorkspace() {
@@ -618,7 +571,7 @@ process.stdout.write(JSON.stringify({
   }
 
   async function hasPolliAuth() {
-    await syncCredentials();
+    if (!(await syncCredentials())) return false;
     const status = await shellResult(`${POLLI} --json auth status`);
     if (!status || status.code !== 0) return false;
     try {
@@ -651,10 +604,9 @@ process.stdout.write(JSON.stringify({
   }
 
   async function runAgent() {
-    await syncCredentials();
     if (!(await hasPolliAuth())) {
-      write('\x1b[33mThis tiny agent uses Polli CLI as its LLM backend, but Polli is not authenticated from /home/.pollinations/credentials.json.\x1b[0m');
-      write('\x1b[33mClick Browser Key or run polli auth login --no-browser yourself, then press Run Agent again.\x1b[0m');
+      write(`\x1b[33mThis tiny agent uses polli as its LLM backend, but polli cannot read ${CREDS_FILE}.\x1b[0m`);
+      write('\x1b[33mClick Browser Key, then press Run Agent again.\x1b[0m');
       return;
     }
     runCount += 1;
@@ -738,10 +690,7 @@ process.stdout.write(JSON.stringify({
     for (const store of [KEY_STORE, ...LEGACY_KEY_STORES]) localStorage.removeItem(store);
     apiKey = null;
     if (wc) {
-      const home = await getPolliHome();
-      try { await wc.fs.rm('.pollinations/credentials.json'); } catch {}
-      try { await wc.fs.rm('/home/.pollinations/credentials.json'); } catch {}
-      try { await wc.fs.rm(joinPath(joinPath(home, '.pollinations'), 'credentials.json')); } catch {}
+      try { await wc.fs.rm(CREDS_FILE); } catch {}
     }
     updateAuthUi();
     write('\x1b[2mcredential removed from browser storage and WebContainer\x1b[0m');
@@ -776,36 +725,11 @@ process.stdout.write(JSON.stringify({
 
   document.querySelector('[data-cmd="help"]').onclick = () =>
     spawnShell(`${POLLI} --help`, { label: 'polli --help' });
-  document.querySelector('[data-cmd="login"]').onclick = () =>
-    spawnShell(`${POLLI} auth login --no-browser`, { label: 'polli auth login --no-browser' });
   document.querySelector('[data-cmd="models"]').onclick = () =>
     spawnShell(`${POLLI} models --type text | head -25`, { label: 'polli models --type text | head -25' });
   document.querySelector('[data-cmd="auth"]').onclick = async () => {
     await syncCredentials({ announce: true });
     return spawnShell(`${POLLI} --json auth status`, { label: 'polli --json auth status' });
-  };
-  document.querySelector('[data-cmd="debug"]').onclick = async () => {
-    await syncCredentials({ announce: true });
-    const script = `
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const file = path.join(os.homedir(), '.pollinations', 'credentials.json');
-const info = { home: os.homedir(), file, exists: fs.existsSync(file) };
-if (info.exists) {
-  try {
-    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-    info.hasApiKey = typeof saved.apiKey === 'string' && saved.apiKey.length > 10;
-    info.keyType = saved.keyType || null;
-  } catch (err) {
-    info.error = err.message;
-  }
-}
-console.log(JSON.stringify(info, null, 2));
-`;
-    return spawnShell(`node -e ${JSON.stringify(script)} && ${POLLI} --json auth status`, {
-      label: 'auth debug (no key printed)',
-    });
   };
   document.querySelector('[data-cmd="text"]').onclick = async () => {
     await syncCredentials({ announce: true });
