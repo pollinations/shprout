@@ -377,7 +377,6 @@
   const HOME = '/home';
   const CREDS_FILE = `${HOME}/.pollinations/credentials.json`;
   const POLLI = 'polli';
-  const SHELL_ENV = { HOME, PATH: '/.bin:/usr/local/bin:/usr/bin:/bin' };
   const files = ['README.md', 'demo.html', 'polli-result.txt', 'check.mjs', 'tiny-agent.mjs', 'polli-web.mjs'];
   const starter = {
     'README.md': '# Polli Agent Workspace\n\nUse `polli` to generate something, then turn it into a tiny demo artifact.\n\nExpected outputs:\n\n- `polli-result.txt` contains raw text from Pollinations.\n- `demo.html` presents that text in a simple page.\n- `node check.mjs` passes.\n',
@@ -502,10 +501,22 @@
 
   async function shellResult(cmd) {
     if (!wc) return null;
-    const proc = await wc.spawn('jsh', ['-c', cmd], { env: SHELL_ENV });
+    const proc = await wc.spawn('jsh', ['-c', shellCommand(cmd)], { env: shellEnv() });
     let text = '';
     await proc.output.pipeTo(new WritableStream({ write: data => { text += data; } }));
     return { code: await proc.exit, text };
+  }
+
+  function shellPath() {
+    return `/.bin:${wc?.path || '/usr/local/bin:/usr/bin:/bin'}`;
+  }
+
+  function shellEnv() {
+    return { HOME, PATH: shellPath() };
+  }
+
+  function shellCommand(cmd) {
+    return `export HOME=${JSON.stringify(HOME)} PATH=${JSON.stringify(shellPath())}; ${cmd}`;
   }
 
   async function syncCredentials({ announce = false } = {}) {
@@ -532,7 +543,7 @@
       fetch('/tiny-agent.mjs').then(r => r.text()),
       fetch('/polli-web.mjs').then(r => r.text()),
     ]);
-    const polliBin = '#!/bin/bash\nexec node /polli-web.mjs "$@"\n';
+    const polliBin = '#!/bin/sh\nnode /polli-web.mjs "$@"\n';
     await wc.mount({
       'README.md': { file: { contents: starter['README.md'] } },
       'demo.html': { file: { contents: starter['demo.html'] } },
@@ -544,7 +555,8 @@
         'polli': { file: { contents: polliBin } },
       }},
     });
-    await shellResult('chmod +x /.bin/polli');
+    const chmod = await shellResult('chmod +x .bin/polli || chmod +x /.bin/polli');
+    if (!chmod || chmod.code !== 0) throw new Error(`could not make polli executable: ${chmod?.text || 'unknown error'}`);
   }
 
   async function spawnShell(cmd, { label = cmd, echo = true } = {}) {
@@ -557,7 +569,7 @@
       commandLine(label);
     }
     try {
-      const proc = await wc.spawn('jsh', ['-c', cmd], { env: SHELL_ENV });
+      const proc = await wc.spawn('jsh', ['-c', shellCommand(cmd)], { env: shellEnv() });
       proc.output.pipeTo(new WritableStream({ write: data => term.write(data) }));
       const code = await proc.exit;
       write(`\x1b[2m[exit ${code}]\x1b[0m`);
@@ -746,7 +758,7 @@
         throw new Error(`WebContainer needs cross-origin isolation. Open ${location.href} in a normal browser window.`);
       }
       write('\x1b[2mbooting WebContainer...\x1b[0m');
-      wc = await WebContainer.boot();
+      wc = await WebContainer.boot({ coep: 'require-corp' });
       window.wc = wc;
       write('\x1b[2mmounting demo workspace...\x1b[0m');
       await mountWorkspace();
