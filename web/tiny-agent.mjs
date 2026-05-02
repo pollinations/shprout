@@ -41,7 +41,7 @@ const AsyncFunction = (async () => {}).constructor;
 const self = new URL(import.meta.url);
 const sys = await fs.readFile(self, 'utf-8');
 
-const polliCommand = process.env.POLLI || 'polli';
+const polliCommand = process.env.POLLI || 'npx -y --package @pollinations_ai/cli@latest polli';
 const polliParts = polliCommand.split(/\s+/).filter(Boolean);
 const model = process.env.MODEL || 'openai-fast';
 const rootTask = process.argv.slice(2).join(' ') || 'Use polli to generate a small demo artifact.';

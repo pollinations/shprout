@@ -299,7 +299,7 @@
       <div class="mark">P</div>
       <div>
         <h1>Polli Agent</h1>
-        <div class="subtle">Polli command runner in a disposable WebContainer</div>
+        <div class="subtle">Polli CLI via npx in a disposable WebContainer</div>
       </div>
     </div>
     <div class="top-actions">
@@ -323,13 +323,6 @@
           <option value="claude-large">claude-large</option>
           <option value="openai-large">openai-large</option>
           <option value="gemini-large">gemini-large</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="runner">Polli Runner</label>
-        <select id="runner">
-          <option value="shim">shim</option>
-          <option value="npx">npx latest</option>
         </select>
       </div>
       <div class="button-row">
@@ -385,7 +378,7 @@
   const CREDS_FILE = `${HOME}/.pollinations/credentials.json`;
   const POLLI = 'polli';
   const POLLI_NPX = 'npx -y --package @pollinations_ai/cli@latest polli';
-  const files = ['README.md', 'demo.html', 'polli-result.txt', 'check.mjs', 'tiny-agent.mjs', 'polli-web.mjs'];
+  const files = ['README.md', 'demo.html', 'polli-result.txt', 'check.mjs', 'tiny-agent.mjs'];
   const starter = {
     'README.md': '# Polli Agent Workspace\n\nUse `polli` to generate something, then turn it into a tiny demo artifact.\n\nExpected outputs:\n\n- `polli-result.txt` contains raw text from Pollinations.\n- `demo.html` presents that text in a simple page.\n- `node check.mjs` passes.\n',
     'demo.html': '<!doctype html>\n<meta charset="utf-8">\n<title>Polli demo</title>\n<h1>Waiting for Polli</h1>\n<p>Run the agent to generate this page.</p>\n',
@@ -516,35 +509,11 @@
   }
 
   function shellPath() {
-    return `.bin:/.bin:${wc?.path || '/usr/local/bin:/usr/bin:/bin'}`;
-  }
-
-  function polliScript() {
-    return `${wc?.workdir || '.'}/polli-web.mjs`;
-  }
-
-  function polliShimCommand() {
-    return `node ${JSON.stringify(polliScript())}`;
-  }
-
-  function polliShimExecCommand() {
-    return `node ${polliScript()}`;
-  }
-
-  function polliRunner() {
-    return $('runner')?.value || 'shim';
-  }
-
-  function polliCommand() {
-    return polliRunner() === 'npx' ? POLLI_NPX : polliShimCommand();
-  }
-
-  function polliExecCommand() {
-    return polliRunner() === 'npx' ? POLLI_NPX : polliShimExecCommand();
+    return wc?.path || '/usr/local/bin:/usr/bin:/bin';
   }
 
   function expandPolliCommand(cmd) {
-    return cmd.replace(/(^|[;&|]\s*)polli(?=\s|$)/g, (_, prefix) => `${prefix}${polliCommand()}`);
+    return cmd.replace(/(^|[;&|]\s*)polli(?=\s|$)/g, (_, prefix) => `${prefix}${POLLI_NPX}`);
   }
 
   function shellEnv() {
@@ -575,28 +544,14 @@
   }
 
   async function mountWorkspace() {
-    const [agent, polli] = await Promise.all([
-      fetch('/tiny-agent.mjs').then(r => r.text()),
-      fetch('/polli-web.mjs').then(r => r.text()),
-    ]);
-    const polliBin = `#!/bin/sh\n${polliShimCommand()} "$@"\n`;
+    const agent = await fetch('/tiny-agent.mjs').then(r => r.text());
     await wc.mount({
       'README.md': { file: { contents: starter['README.md'] } },
       'demo.html': { file: { contents: starter['demo.html'] } },
       'polli-result.txt': { file: { contents: starter['polli-result.txt'] } },
       'check.mjs': { file: { contents: starter['check.mjs'] } },
       'tiny-agent.mjs': { file: { contents: agent } },
-      'polli-web.mjs': { file: { contents: polli } },
-      '.bin': { directory: {
-        'polli': { file: { contents: polliBin } },
-      }},
     });
-    await wc.fs.mkdir('/.bin', { recursive: true });
-    await wc.fs.writeFile('/.bin/polli', polliBin);
-    const chmod = await shellResult('chmod +x .bin/polli /.bin/polli');
-    if (!chmod || chmod.code !== 0) throw new Error(`could not make polli executable: ${chmod?.text || 'unknown error'}`);
-    const polliCheck = await shellResult('polli --help');
-    if (!polliCheck || polliCheck.code !== 0) throw new Error(`polli is not available on PATH: ${polliCheck?.text || 'unknown error'}`);
   }
 
   async function spawnShell(cmd, { label = cmd, echo = true } = {}) {
@@ -667,7 +622,7 @@
     const model = $('model').value;
     const quotedTask = JSON.stringify(task);
     const quotedModel = JSON.stringify(model);
-    const code = await spawnShell(`MODEL=${quotedModel} POLLI=${JSON.stringify(polliExecCommand())} node tiny-agent.mjs ${quotedTask}`, {
+    const code = await spawnShell(`MODEL=${quotedModel} POLLI=${JSON.stringify(POLLI_NPX)} node tiny-agent.mjs ${quotedTask}`, {
       label: `MODEL=${model} node tiny-agent.mjs "${task.replace(/"/g, '\\"')}"`,
     });
     const testCode = await runTests({ count: false });
@@ -788,10 +743,6 @@
     return spawnShell(`${POLLI} gen text "Say hello from inside WebContainer in one short sentence." --model ${$('model').value} --no-stream`, {
       label: `polli gen text --model ${$('model').value}`,
     });
-  };
-
-  $('runner').onchange = () => {
-    write(`\x1b[2mpolli runner: ${polliRunner()}\x1b[0m`);
   };
 
   async function boot() {
