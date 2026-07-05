@@ -29,7 +29,11 @@ from provider import resolve  # noqa: E402
 
 INSTALL_TOOLS = """\
 if command -v curl >/dev/null && command -v jq >/dev/null; then exit 0; fi
-if command -v apt-get >/dev/null; then apt-get update -qq && apt-get install -y -qq curl jq ca-certificates;
+if command -v apt-get >/dev/null; then
+  # corrupted cached lists (e.g. truncated by a full disk) break apt-get update;
+  # clearing them and retrying recovers
+  apt-get update -qq || { rm -rf /var/lib/apt/lists/*; apt-get update -qq; }
+  apt-get install -y -qq curl jq ca-certificates;
 elif command -v apk >/dev/null; then apk add --no-cache curl jq ca-certificates;
 elif command -v yum >/dev/null; then yum install -y -q curl jq ca-certificates;
 else echo "no known package manager" >&2; exit 1; fi
