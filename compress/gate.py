@@ -230,8 +230,14 @@ if os.path.exists(CACHE_PATH):
 
 
 def evaluate_script(script: str, *, use_cache: bool = True) -> dict:
-    """Full cascade. Returns {hash, tier0, tier1, tier2, score, fails}."""
-    h = hashlib.sha256(script.encode()).hexdigest()[:16]
+    """Full cascade. Returns {hash, tier0, tier1, tier2, score, fails}.
+
+    Cache key includes provider + runtime model: tier-2 scores are only
+    comparable when the endpoint serving the agent's thinking is the same.
+    """
+    p = resolve()
+    runtime = os.environ.get("EVAL_RUNTIME_MODEL", p["runtime"])
+    h = hashlib.sha256(f"{script}|{p['name']}|{runtime}".encode()).hexdigest()[:16]
     if use_cache and h in _cache:
         return _cache[h]
 

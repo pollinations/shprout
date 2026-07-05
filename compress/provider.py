@@ -51,7 +51,9 @@ def _auth_ok(base: str, key: str, model: str) -> bool:
     req = urllib.request.Request(
         f"{base}/chat/completions", data=body, method="POST",
         headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"})
+                 "Content-Type": "application/json",
+                 # gateway 403s python-urllib's default UA
+                 "User-Agent": "shprout-compress/0.2"})
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             return "choices" in json.loads(r.read())
