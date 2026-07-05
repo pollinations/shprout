@@ -1,0 +1,197 @@
+{
+ "dataset": "terminal-bench-sample@2.0",
+ "runtime_model": "claude (pollinations)",
+ "reference": {
+  "label": "reference shprout 910B, 10 iterations",
+  "job_dir": "/tmp/claude-501/harbor-jobs/2026-07-05__13-18-04",
+  "trials": {
+   "fix-code-vulnerability": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "polyglot-c-py": {
+    "reward": null,
+    "exception": "NonZeroAgentExitCodeError",
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "build-cython-ext": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "chess-best-move": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "log-summary-date-ranges": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "sqlite-with-gcov": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "qemu-startup": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "regex-log": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "configure-git-webserver": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   },
+   "qemu-alpine-ssh": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "910B-d4c56439",
+     "model_info": null
+    }
+   }
+  }
+ },
+ "champion": {
+  "label": "champion 386B prompt -> 1891B agent, 20 iterations",
+  "job_dir": "/tmp/claude-501/harbor-jobs/2026-07-05__13-30-57",
+  "trials": {
+   "log-summary-date-ranges": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "regex-log": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "configure-git-webserver": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "build-cython-ext": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "chess-best-move": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "sqlite-with-gcov": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "qemu-startup": {
+    "reward": 0.0,
+    "exception": "AgentTimeoutError",
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "qemu-alpine-ssh": {
+    "reward": 0.0,
+    "exception": "AgentTimeoutError",
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "polyglot-c-py": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   },
+   "fix-code-vulnerability": {
+    "reward": 0.0,
+    "exception": null,
+    "agent_info": {
+     "name": "shprout",
+     "version": "1891B-9f6d59ff",
+     "model_info": null
+    }
+   }
+  }
+ },
+ "conclusion": "0/10 both; sample tasks beyond any 1-2KB agent. Qualitative gap: champion wrote /app/regex.txt (failed only on findall capture-group), reference wrote nothing; champion survived polyglot-c-py install; champion's 20-iter loop timed out on both qemu tasks."
+}
