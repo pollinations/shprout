@@ -18,7 +18,7 @@ const types = {
 
 createServer(async (req, res) => {
   const url = req.url.split('?')[0];
-  if (url === '/' || url === '/index.html' || url === '/nodeprout.html') {
+  if (url === '/' || url === '/index.html' || url === '/nodeprout.html' || url === '/evalprout.html') {
     res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   }
