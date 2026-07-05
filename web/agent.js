@@ -18,6 +18,9 @@
 //   return [{ task: 'A', stage: aEl },                 // give children their own slots
 //           { task: 'B', stage: bEl }]
 //
+// If your code THROWS, that is not the end: you see the error in the log and
+// automatically get another turn to fix it.
+//
 // Every element is an object. `task` and `stage` are both optional. If `task`
 // is omitted, no new <task> is appended — the child still sees the original
 // task at the top of the log and all your reasoning since. If `stage` is
@@ -33,6 +36,7 @@ const AsyncFn = (async function(){}).constructor;
 const think = (ctx, log) => fetch('https://gen.pollinations.ai/v1/chat/completions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.key}` },
+  signal: AbortSignal.any([AbortSignal.timeout(120_000), ctx.signal].filter(Boolean)),
   body: JSON.stringify({ model: ctx.model, stop: ['```\n'],
     messages: [{ role: 'system', content: ctx.sys }, { role: 'user', content: log }] }),
 }).then(r => r.json()).then(r => r.choices[0].message.content);
@@ -42,39 +46,48 @@ const act = async (code, scope) => {
   const cap = tag => (...a) => logs.push(`${tag}${a.map(String).join(' ')}`);
   const console = { log: cap(''), warn: cap('? '), error: cap('!! ') };
   const fullScope = { ...scope, console };
-  let value;
+  let value, threw = false;
   try {
     const fn = new AsyncFn(...Object.keys(fullScope), code);
     value = await fn(...Object.values(fullScope));
     if (value !== undefined) logs.push(`=> ${JSON.stringify(value)}`);
-  } catch (e) { logs.push(`!! ${e.stack || e.message}`); }
-  return { text: logs.join('\n') || '(no output)', value };
+  } catch (e) { logs.push(`!! ${e.stack || e.message}`); threw = true; }
+  return { text: logs.join('\n') || '(no output)', value, threw };
 };
 
-const extract = rsp => rsp.match(/^```[^\n]*\n([\s\S]*)/m)?.[1]?.trim();
+const extract = rsp => rsp.match(/^```[^\n]*\n([\s\S]*)/m)?.[1]?.replace(/\n```\s*$/, '').trim();
 const append = (log, rsp, out) => `${log}\n--- you ---\n${rsp}\n--- js ---\n${out}\n`;
 const snapshot = stage => `<dom>\n${stage.outerHTML}\n</dom>\n`;
 const start = task => `<task>${task}</task>\n#log\n`;
 
 const step = async (ctx, log, stage) => {
+  if (ctx.signal?.aborted || --ctx.left < 0) return;
   const dom = snapshot(stage);
   ctx.show('dom', dom);
-  const rsp = await think(ctx, log + dom);
+  let rsp;
+  try { rsp = await think(ctx, log + dom); }
+  catch (e) {
+    if (ctx.signal?.aborted) return;
+    ctx.show('err', `think failed: ${e.message} — retrying`);
+    return step(ctx, log, stage);
+  }
   ctx.show('prose', rsp);
   const code = extract(rsp);
   if (!code) return;
   ctx.show('code', code);
   const out = await act(code, { stage, fetch: window.fetch.bind(window) });
   ctx.show('out', out.text);
-  if (!Array.isArray(out.value) || out.value.length === 0) return;
   const nextLog = append(log, rsp, out.text);
+  if (out.threw) return step(ctx, nextLog, stage); // crash ≠ done: see the error, try again
+  if (!Array.isArray(out.value) || out.value.length === 0) return;
   await Promise.allSettled(out.value.map(spec => {
     const childLog = spec?.task ? `${nextLog}<task>${spec.task}</task>\n` : nextLog;
     return step(ctx, childLog, spec?.stage ?? stage);
   }));
 };
 
-export const jsprout = async ({ task, model, key, show }) => {
+export const jsprout = async ({ task, model, key, show, stage, budget = 24, signal }) => {
   const sys = await fetch(import.meta.url).then(r => r.text());
-  return step({ sys, model, key, show }, start(task), document.getElementById('stage'));
+  return step({ sys, model, key, show, left: budget, signal },
+              start(task), stage ?? document.getElementById('stage'));
 };
