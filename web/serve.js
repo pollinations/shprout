@@ -1,41 +1,27 @@
 #!/usr/bin/env node
-// Tiny static server with COOP/COEP for SharedArrayBuffer (WebContainer requirement).
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
 
-const PORT = process.env.PORT || 8088;
-const ROOT = new URL('.', import.meta.url).pathname;
-const SHPROUT = new URL('../shprout', import.meta.url).pathname;
-const SHIM_AWK = new URL('./shims/awk', import.meta.url).pathname;
-const SHIM_SED = new URL('./shims/sed', import.meta.url).pathname;
-const NODEPROUT = new URL('./nodeprout.mjs', import.meta.url).pathname;
+const port = Number(process.env.PORT || 8088);
+const routes = new Map([
+  ['/', { path: new URL('./index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
+  ['/index.html', { path: new URL('./index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
+  ['/shprout.txt', { path: new URL('../shprout', import.meta.url), type: 'text/plain; charset=utf-8' }],
+]);
 
-const types = {
-  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-  '.json': 'application/json', '.svg': 'image/svg+xml',
-};
-
-createServer(async (req, res) => {
-  const url = req.url.split('?')[0];
-  if (url === '/' || url === '/index.html' || url === '/nodeprout.html' || url === '/evalprout.html') {
-    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+createServer(async (request, response) => {
+  const route = routes.get(new URL(request.url, 'http://localhost').pathname);
+  if (!route) {
+    response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end('not found');
+    return;
   }
-
-  let path = url;
-  if (path === '/') path = '/index.html';
 
   try {
-    const file = path === '/shprout.txt' ? SHPROUT
-      : path === '/shims/awk' ? SHIM_AWK
-      : path === '/shims/sed' ? SHIM_SED
-      : path === '/nodeprout.mjs.txt' ? NODEPROUT
-      : join(ROOT, path);
-    const body = await readFile(file);
-    res.setHeader('Content-Type', types[extname(file)] || 'text/plain');
-    res.end(body);
-  } catch {
-    res.statusCode = 404; res.end('not found');
+    response.writeHead(200, { 'Content-Type': route.type, 'Cache-Control': 'no-store' });
+    response.end(await readFile(route.path));
+  } catch (error) {
+    response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end(String(error));
   }
-}).listen(PORT, () => console.log(`http://localhost:${PORT}`));
+}).listen(port, () => console.log(`http://localhost:${port}`));

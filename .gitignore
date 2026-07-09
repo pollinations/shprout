@@ -3,3 +3,6 @@ experiments/
 *.log
 .claude/
 .playwright-mcp/
+node_modules/
+__pycache__/
+*.pyc

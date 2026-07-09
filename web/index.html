@@ -1,124 +1,169 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>shprout in a tab</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
-<style>
-  html, body { margin: 0; height: 100%; background: #111; color: #eee; font: 14px system-ui; }
-  #bar { padding: 6px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #333; }
-  #bar input { flex: 1; background: #222; color: #eee; border: 1px solid #444; padding: 6px 8px; border-radius: 4px; font: inherit; }
-  #bar button { background: #2563eb; color: white; border: 0; padding: 6px 12px; border-radius: 4px; cursor: pointer; font: inherit; }
-  #bar button.auth { background: #16a34a; }
-  #bar button:disabled { opacity: 0.4; cursor: not-allowed; }
-  #term { height: calc(100vh - 44px); padding: 8px; }
-</style>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>shprout</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #101112; color: #f4f4f5; }
+    body { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    header { min-height: 48px; padding: 7px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #303236; background: #18191b; }
+    strong { font-size: 14px; margin-right: 4px; }
+    input { min-width: 140px; flex: 1; height: 34px; border: 1px solid #414349; border-radius: 4px; padding: 0 10px; background: #222428; color: inherit; font: inherit; }
+    input:focus { outline: 2px solid #4f8cff; outline-offset: 1px; }
+    button { height: 34px; border: 0; border-radius: 4px; padding: 0 12px; background: #3977e8; color: white; font: 600 13px inherit; cursor: pointer; }
+    button.secondary { background: #2b2d31; border: 1px solid #414349; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    #status { min-width: 84px; color: #a1a1aa; font-size: 12px; text-align: right; }
+    #term { min-width: 0; min-height: 0; overflow: hidden; padding: 10px; }
+    @media (max-width: 640px) {
+      header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+      strong { grid-column: 1; grid-row: 1; }
+      #status { grid-column: 2; grid-row: 1; min-width: 0; }
+      input { grid-column: 1 / -1; min-width: 0; }
+      #run { grid-column: 1; width: 100%; }
+      #auth { grid-column: 2; min-width: 96px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>shprout</strong>
+    <input id="task" aria-label="Task" placeholder="Give the agent a task" disabled>
+    <button id="run" disabled>Run</button>
+    <button id="auth" class="secondary">Authorize</button>
+    <span id="status">starting</span>
+  </header>
+  <main id="term"></main>
 
-<div id="bar">
-  <input id="task" placeholder="task for shprout (e.g. count files in /tmp)" autofocus disabled>
-  <button id="go" disabled>Run</button>
-  <button id="auth" class="auth" hidden>Authorize</button>
-  <span id="status" style="color:#888"></span>
-</div>
-<div id="term"></div>
+  <script type="module">
+    import { Terminal } from 'https://esm.sh/@xterm/xterm@5.5.0';
+    import { FitAddon } from 'https://esm.sh/@xterm/addon-fit@0.10.0';
+    import { Bash } from 'https://esm.sh/just-bash@3.1.0/browser?bundle';
 
-<script type="module">
-  import { Terminal } from 'https://esm.sh/@xterm/xterm@5.5.0';
-  import { FitAddon } from 'https://esm.sh/@xterm/addon-fit@0.10.0';
-  import { WebContainer } from 'https://esm.sh/@webcontainer/api@1.5.1';
+    const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
+    const KEY_STORE = 'shprout.apiKey';
+    const POLLI_AUTH = 'https://enter.pollinations.ai/authorize';
+    const POLLI_BASE = 'https://gen.pollinations.ai/v1';
+    const RUNTIME = 'just-bash 3.1.0 in a browser; virtual filesystem and built-in commands only; no Node, npm, Python, native binaries, or unrestricted network';
 
-  const APP_KEY = 'pk_xMe0kHLHGca6k7lf';                  // shprout's publishable key
-  const KEY_STORE = 'shprout.apiKey';
-  const POLLI_AUTH = 'https://enter.pollinations.ai/authorize';
-  const POLLI_BASE = 'https://gen.pollinations.ai/v1';
+    const taskEl = document.querySelector('#task');
+    const runEl = document.querySelector('#run');
+    const authEl = document.querySelector('#auth');
+    const statusEl = document.querySelector('#status');
+    const term = new Terminal({ convertEol: true, fontSize: 13, theme: { background: '#101112' } });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(document.querySelector('#term'));
+    fit.fit();
+    addEventListener('resize', () => fit.fit());
 
-  const term = new Terminal({ convertEol: true, fontSize: 13, theme: { background: '#111' } });
-  const fit = new FitAddon();
-  term.loadAddon(fit);
-  term.open(document.getElementById('term'));
-  fit.fit();
-  addEventListener('resize', () => fit.fit());
+    const setStatus = text => { statusEl.textContent = text; };
+    const write = text => term.write(String(text).replaceAll('\n', '\r\n'));
+    const line = text => write(`${text}\n`);
+    const shellQuote = text => `'${text.replaceAll("'", "'\\''")}'`;
 
-  const status = document.getElementById('status');
-  const taskEl = document.getElementById('task');
-  const goEl = document.getElementById('go');
-  const authEl = document.getElementById('auth');
-  const setStatus = s => status.textContent = s;
-  const log = s => term.write(s + '\r\n');
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    const incomingKey = fragment.get('api_key');
+    const authError = fragment.get('error');
+    if (incomingKey || authError) history.replaceState(null, '', location.pathname + location.search);
+    if (incomingKey) sessionStorage.setItem(KEY_STORE, incomingKey);
 
-  // BYOP: extract sk_ from URL fragment if redirected back from authorize
-  const frag = new URLSearchParams(location.hash.slice(1));
-  const incomingKey = frag.get('api_key');
-  if (incomingKey) {
-    localStorage.setItem(KEY_STORE, incomingKey);
-    history.replaceState(null, '', location.pathname + location.search);
-  }
-  let apiKey = localStorage.getItem(KEY_STORE);
+    const legacyKey = localStorage.getItem(KEY_STORE);
+    if (legacyKey && !sessionStorage.getItem(KEY_STORE)) sessionStorage.setItem(KEY_STORE, legacyKey);
+    if (legacyKey) localStorage.removeItem(KEY_STORE);
+    let apiKey = sessionStorage.getItem(KEY_STORE);
+    let bash;
 
-  function authorize() {
-    const url = new URL(POLLI_AUTH);
-    url.searchParams.set('app_key', APP_KEY);
-    url.searchParams.set('redirect_url', location.origin + location.pathname);
-    location.href = url.toString();
-  }
-  authEl.onclick = authorize;
-
-  if (!apiKey) {
-    authEl.hidden = false;
-    setStatus('not authorized');
-    log('\x1b[33mclick "Authorize" to grant shprout access to your Pollinations balance (BYOP).\x1b[0m');
-  }
-
-  setStatus('booting…');
-  log('\x1b[2mbooting WebContainer…\x1b[0m');
-  const wc = await WebContainer.boot();
-  window.wc = wc;  // expose for probing
-
-  log('\x1b[2mfetching shprout + shims…\x1b[0m');
-  const [shprout, awkShim, sedShim] = await Promise.all([
-    fetch('/shprout.txt').then(r => r.text()),
-    fetch('/shims/awk').then(r => r.text()),
-    fetch('/shims/sed').then(r => r.text()),
-  ]);
-  await wc.mount({
-    'shprout': { file: { contents: shprout } },
-    'bin': { directory: {
-      'awk': { file: { contents: awkShim } },
-      'sed': { file: { contents: sedShim } },
-    }},
-  });
-  await (await wc.spawn('jsh', ['-c', 'chmod +x shprout bin/awk bin/sed'])).exit;
-
-  log('\x1b[2mprobing environment…\x1b[0m');
-  const probe = await wc.spawn('jsh', ['-c', 'pwd; ls bin; echo "PATH-test:"; PATH="$PWD/bin:$PATH" which awk sed; echo ready'], {
-    env: { PATH: '/usr/local/bin:/usr/bin:/bin' }
-  });
-  probe.output.pipeTo(new WritableStream({ write: c => term.write(c) }));
-  await probe.exit;
-
-  setStatus(apiKey ? 'ready' : 'awaiting authorization');
-  log('\r\n\x1b[32mWebContainer ready.\x1b[0m' + (apiKey ? ' type a task and hit Run.\r\n' : ' authorize first.\r\n'));
-
-  if (apiKey) { taskEl.disabled = false; goEl.disabled = false; taskEl.focus(); }
-
-  goEl.onclick = run;
-  taskEl.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
-
-  async function run() {
-    const task = taskEl.value.trim();
-    if (!task || !apiKey) return;
-    setStatus('running…');
-    goEl.disabled = true;
-    log(`\r\n\x1b[36m$ shprout "${task}"\x1b[0m`);
-    const proc = await wc.spawn('bash', ['-c', 'PATH="$PWD/bin:$PATH" exec bash shprout "$1"', '--', task], {
-      env: {
-        OPENAI_API_KEY: apiKey,
-        MODEL: 'claude-large',
-        OPENAI_BASE_URL: POLLI_BASE,
-      },
+    authEl.addEventListener('click', () => {
+      if (apiKey) {
+        sessionStorage.removeItem(KEY_STORE);
+        location.reload();
+        return;
+      }
+      const url = new URL(POLLI_AUTH);
+      url.searchParams.set('client_id', APP_KEY);
+      url.searchParams.set('redirect_uri', location.origin + location.pathname);
+      location.href = url;
     });
-    proc.output.pipeTo(new WritableStream({ write: c => term.write(c) }));
-    const code = await proc.exit;
-    log(`\x1b[2m[exit ${code}]\x1b[0m`);
-    setStatus('ready');
-    goEl.disabled = false;
-  }
-</script>
+
+    runEl.addEventListener('click', run);
+    taskEl.addEventListener('keydown', event => { if (event.key === 'Enter') run(); });
+
+    if (authError) line(`\x1b[31mauthorization failed: ${authError}\x1b[0m`);
+    await boot();
+
+    async function boot() {
+      if (!apiKey) {
+        setStatus('not authorized');
+        line('\x1b[33mAuthorize to use your Pollinations balance.\x1b[0m');
+        return;
+      }
+
+      authEl.textContent = 'Sign out';
+      setStatus('loading shell');
+      line('\x1b[2mloading shprout in just-bash...\x1b[0m');
+      try {
+        const response = await fetch('/shprout.txt');
+        if (!response.ok) throw new Error(`shprout: HTTP ${response.status}`);
+        const source = await response.text();
+        bash = new Bash({
+          files: { '/home/user/shprout': source },
+          cwd: '/home/user',
+          env: {
+            OPENAI_API_KEY: 'managed-by-browser',
+            OPENAI_BASE_URL: POLLI_BASE,
+            MODEL: 'claude-large',
+            SHPROUT_RUNTIME: RUNTIME,
+          },
+          network: {
+            allowedUrlPrefixes: [{
+              url: `${POLLI_BASE}/`,
+              transform: [{ headers: { Authorization: `Bearer ${apiKey}` } }],
+            }],
+            allowedMethods: ['POST'],
+          },
+          executionLimits: {
+            maxCommandCount: 5000,
+            maxLoopIterations: 5000,
+          },
+        });
+        window.shprout = bash;
+        setStatus('ready');
+        line('\x1b[32mready\x1b[0m');
+        taskEl.disabled = false;
+        runEl.disabled = false;
+        taskEl.focus();
+      } catch (error) {
+        setStatus('failed');
+        line(`\x1b[31m${error.stack || error}\x1b[0m`);
+      }
+    }
+
+    async function run() {
+      const task = taskEl.value.trim();
+      if (!task || !bash) return;
+      taskEl.disabled = true;
+      runEl.disabled = true;
+      setStatus('running');
+      line(`\n\x1b[36m$ shprout ${shellQuote(task)}\x1b[0m`);
+      try {
+        const result = await bash.exec(`bash /home/user/shprout ${shellQuote(task)}`);
+        if (result.stdout) write(result.stdout);
+        if (result.stderr) write(`\x1b[31m${result.stderr}\x1b[0m`);
+        line(`\x1b[2m[exit ${result.exitCode}]\x1b[0m`);
+      } catch (error) {
+        line(`\x1b[31m${error.stack || error}\x1b[0m`);
+      } finally {
+        setStatus('ready');
+        taskEl.disabled = false;
+        runEl.disabled = false;
+        taskEl.focus();
+      }
+    }
+  </script>
+</body>
+</html>

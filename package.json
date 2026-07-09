@@ -1,0 +1,12 @@
+{
+  "name": "shprout",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node web/serve.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "just-bash": "3.1.0"
+  }
+}
