@@ -4,6 +4,7 @@ import test from 'node:test';
 import { Bash } from 'just-bash/browser';
 
 const source = await readFile(new URL('../shprout', import.meta.url), 'utf8');
+const browserSource = await readFile(new URL('../web/index.html', import.meta.url), 'utf8');
 const encoder = new TextEncoder();
 
 function createRun(responses, { heartbeat = false } = {}) {
@@ -88,4 +89,10 @@ test('heartbeat state is included only when explicitly enabled', async () => {
 
   assert.equal(result.exitCode, 0, result.stderr);
   assert.match(requests[0].body.messages[0].content, /<heartbeat>Check whether the goal is blocked\.<\/heartbeat>/);
+});
+
+test('browser network config bypasses the unavailable DNS resolver', () => {
+  assert.match(browserSource, /denyPrivateRanges:\s*false/);
+  assert.match(browserSource, /allowedMethods:\s*\['POST'\]/);
+  assert.match(browserSource, /Authorization:\s*`Bearer \$\{apiKey\}`/);
 });

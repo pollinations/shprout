@@ -125,6 +125,9 @@
               transform: [{ headers: { Authorization: `Bearer ${apiKey}` } }],
             }],
             allowedMethods: ['POST'],
+            // esm.sh polyfills process, which makes just-bash enable its Node-only
+            // DNS rebinding check. Browser fetch cannot perform that DNS lookup.
+            denyPrivateRanges: false,
           },
           executionLimits: {
             maxCommandCount: 5000,
