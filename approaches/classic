@@ -1,0 +1,18 @@
+#!/bin/bash
+# classic shprout
+# You speak one bare bash command. You hear its output. Empty or exit = done.
+: "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"
+
+p="<you>$(<"$0")</you>"$'\n<task>'"$1"$'</task>\n#log\n'
+
+for i in {1..20}; do
+  body=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}],stop:[\"\\n$ \"]}" <<<"$p")
+  cmd=$(curl -sS -d "$body" -H "Authorization: Bearer $OPENAI_API_KEY" \
+      -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
+    | jq -r .choices[0].message.content)
+
+  [[ -z $cmd || $cmd == exit ]] && break
+  printf '\n$ %s\n' "$cmd"
+  out=$(eval "$cmd" </dev/null 2>&1); printf '%s\n' "$out"
+  p+=$'\n# > '$cmd$'\n'$out
+done

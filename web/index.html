@@ -13,6 +13,7 @@
     header { min-height: 48px; padding: 7px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #303236; background: #18191b; }
     strong { font-size: 14px; margin-right: 4px; }
     input { min-width: 140px; flex: 1; height: 34px; border: 1px solid #414349; border-radius: 4px; padding: 0 10px; background: #222428; color: inherit; font: inherit; }
+    select { height: 34px; max-width: 190px; border: 1px solid #414349; border-radius: 4px; padding: 0 8px; background: #222428; color: inherit; font: inherit; }
     input:focus { outline: 2px solid #4f8cff; outline-offset: 1px; }
     button { height: 34px; border: 0; border-radius: 4px; padding: 0 12px; background: #3977e8; color: white; font: 600 13px inherit; cursor: pointer; }
     button.secondary { background: #2b2d31; border: 1px solid #414349; }
@@ -23,6 +24,7 @@
       header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
       strong { grid-column: 1; grid-row: 1; }
       #status { grid-column: 2; grid-row: 1; min-width: 0; }
+      select { grid-column: 1 / -1; max-width: none; width: 100%; }
       input { grid-column: 1 / -1; min-width: 0; }
       #run { grid-column: 1; width: 100%; }
       #auth { grid-column: 2; min-width: 96px; }
@@ -32,6 +34,12 @@
 <body>
   <header>
     <strong>shprout</strong>
+    <select id="profile" aria-label="Agent approach" disabled>
+      <option value="unfence">unfence + state</option>
+      <option value="classic">classic command</option>
+      <option value="syscap">system + capped log</option>
+      <option value="self-mod">self-modifying</option>
+    </select>
     <input id="task" aria-label="Task" placeholder="Give the agent a task" disabled>
     <button id="run" disabled>Run</button>
     <button id="auth" class="secondary">Authorize</button>
@@ -49,7 +57,14 @@
     const POLLI_AUTH = 'https://enter.pollinations.ai/authorize';
     const POLLI_BASE = 'https://gen.pollinations.ai/v1';
     const RUNTIME = 'just-bash 3.1.0 in a browser; virtual filesystem and built-in commands only; no Node, npm, Python, native binaries, or unrestricted network';
+    const PROFILES = {
+      unfence: { url: '/shprout.txt', path: '/home/user/shprout' },
+      classic: { url: '/approaches/classic.txt', path: '/home/user/approaches/classic' },
+      syscap: { url: '/approaches/syscap.txt', path: '/home/user/approaches/syscap' },
+      'self-mod': { url: '/approaches/self-mod.txt', path: '/home/user/approaches/self-mod' },
+    };
 
+    const profileEl = document.querySelector('#profile');
     const taskEl = document.querySelector('#task');
     const runEl = document.querySelector('#run');
     const authEl = document.querySelector('#auth');
@@ -107,11 +122,14 @@
       setStatus('loading shell');
       line('\x1b[2mloading shprout in just-bash...\x1b[0m');
       try {
-        const response = await fetch('/shprout.txt');
-        if (!response.ok) throw new Error(`shprout: HTTP ${response.status}`);
-        const source = await response.text();
+        const entries = await Promise.all(Object.entries(PROFILES).map(async ([name, profile]) => {
+          const response = await fetch(profile.url);
+          if (!response.ok) throw new Error(`${profile.url}: HTTP ${response.status}`);
+          return [name, profile.path, await response.text()];
+        }));
+        const files = Object.fromEntries(entries.map(([, path, source]) => [path, source]));
         bash = new Bash({
-          files: { '/home/user/shprout': source },
+          files,
           cwd: '/home/user',
           env: {
             OPENAI_API_KEY: 'managed-by-browser',
@@ -137,6 +155,7 @@
         window.shprout = bash;
         setStatus('ready');
         line('\x1b[32mready\x1b[0m');
+        profileEl.disabled = false;
         taskEl.disabled = false;
         runEl.disabled = false;
         taskEl.focus();
@@ -152,9 +171,10 @@
       taskEl.disabled = true;
       runEl.disabled = true;
       setStatus('running');
-      line(`\n\x1b[36m$ shprout ${shellQuote(task)}\x1b[0m`);
+      const profile = PROFILES[profileEl.value];
+      line(`\n\x1b[36m$ ${profileEl.value} ${shellQuote(task)}\x1b[0m`);
       try {
-        const result = await bash.exec(`bash /home/user/shprout ${shellQuote(task)}`);
+        const result = await bash.exec(`bash ${profile.path} ${shellQuote(task)}`);
         if (result.stdout) write(result.stdout);
         if (result.stderr) write(`\x1b[31m${result.stderr}\x1b[0m`);
         line(`\x1b[2m[exit ${result.exitCode}]\x1b[0m`);

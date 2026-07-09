@@ -1,0 +1,34 @@
+#!/bin/bash
+# split/capped shprout
+# Source, runtime, state, and task stay in system. Only the recent log is capped.
+# Think in prose, then put one action in a ```bash fence. No fence = done.
+: "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"
+
+task=$1 history=$'#log\n' state=${SHPROUT_HOME:-.shprout}
+limit=${SHPROUT_HISTORY_CHARS:-10000}
+
+for i in {1..20}; do
+  context=
+  for spec in SOUL:soul GOAL:goal RECENT:recent; do
+    file="$state/${spec%%:*}.md" tag=${spec#*:}
+    [[ -s $file ]] && context+="<$tag>$(<"$file")</$tag>"$'\n'
+  done
+  file="$state/HEARTBEAT.md"
+  [[ ${SHPROUT_HEARTBEAT:-0} == 1 && -s $file ]] && context+="<heartbeat>$(<"$file")</heartbeat>"$'\n'
+
+  sys="<you>$(<"$0")</you>"$'\n<runtime>'"${SHPROUT_RUNTIME:-real bash; cwd=$PWD}"$'</runtime>\n'\
+"$context<task>$task</task>"
+  recent=$(printf '%s' "$history" | tail -c "$limit")
+  sys_json=$(printf '%s' "$sys" | jq -Rs .)
+  recent_json=$(printf '%s' "$recent" | jq -Rs .)
+  body="{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"system\",\"content\":$sys_json},{\"role\":\"user\",\"content\":$recent_json}],\"stop\":[\"\`\`\`\\n\"]}"
+  rsp=$(curl -sS -d "$body" -H "Authorization: Bearer $OPENAI_API_KEY" \
+      -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
+    | jq -r .choices[0].message.content)
+
+  sed 's/^/> /' <<<"$rsp"
+  cmd=$(awk '/^```/{if(f)exit;f=1;next} f' <<<"$rsp")
+  [[ -z $cmd || $cmd == exit ]] && break
+  out=$(eval "$cmd" </dev/null 2>&1); printf '%s\n' "$out"
+  history+=$'\n--- you ---\n'$rsp$'\n--- bash ---\n'$out
+done

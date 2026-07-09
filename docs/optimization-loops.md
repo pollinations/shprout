@@ -10,6 +10,17 @@ The useful unit to optimize is not an isolated prompt string. It is the complete
 
 This keeps the agent self-describing: it sees the actual harness it is operating inside, not a prose approximation maintained somewhere else.
 
+## Implemented surfaces
+
+- `shprout`: default unfenced/stateful profile.
+- `approaches/classic`: original bare-command protocol.
+- `approaches/syscap`: split system/user messages with bounded history.
+- `approaches/self-mod`: writable source identity that refreshes each turn.
+- `research/gate.mjs`: deterministic, offline behavioral gate for candidates.
+- `research/arena.mjs`: isolated same-task comparison across two profiles/models.
+
+The gate and arena are outer-loop infrastructure. They do not add tools or hidden behavior to the agent being measured.
+
 ## Minimal state contract
 
 | File | Lifetime | Prompt policy | Purpose |

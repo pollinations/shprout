@@ -1,8 +1,8 @@
 # Shprout approach archive
 
 This document preserves the useful ideas from the experimental branches while
-the project converges on one agent implementation: the canonical `shprout`
-script, executed by just-bash in the browser.
+the project converges on one browser runtime: just-bash. Distinct shell-agent
+profiles remain runnable because they test materially different harness ideas.
 
 ## Canonical behavior
 
@@ -44,9 +44,10 @@ This branch is already an ancestor of `main`; no unique code remains to port.
 Useful idea: copy the agent into its workspace and reread its source on every
 turn, allowing deliberate self-modification to affect later turns.
 
-This remains a research idea rather than default behavior. It changes agent
-identity during a run and makes evaluation less reproducible. just-bash's
-in-memory filesystem would be a safe place to revisit it later.
+This is available as `approaches/self-mod`. It copies itself once into the
+virtual workspace and proves through the deterministic gate that a source edit
+is visible on the following turn. It remains non-default because changing agent
+identity makes evaluation less reproducible.
 
 ### `unfence`
 
@@ -65,10 +66,9 @@ Useful ideas:
 - Keep execution history in a separate user message.
 - Bound history size so long tool output cannot consume the entire context.
 
-The branch uses process substitution, which just-bash 3.1.0 does not parse.
-If log capping is adopted, use an intermediate variable and `tail -c` instead.
-System/user separation should be benchmarked before changing the canonical
-single-message protocol.
+This is available as `approaches/syscap`. Its process substitution was replaced
+with an intermediate value and `tail -c`, which just-bash supports. The gate
+checks both the system/user split and the configured history limit.
 
 ### `prompt-compression`
 
@@ -90,9 +90,11 @@ Useful ideas to preserve as tests:
 - Tier 3 external Terminal-Bench runs for broader reality checks.
 - Cache results by script, model, provider, and gate configuration.
 
-The 386-byte prompt champion passed the six-task micro-bench, but both it and
-the reference scored 0/10 on the sampled Terminal-Bench run. It is research
-evidence, not a production replacement for the canonical script.
+The 386-byte prompt produced one passing sample out of two; the selected agent
+passed the six-task micro-bench. Both it and the reference scored 0/10 on the
+sampled Terminal-Bench run. The evidence and prompt are restored under
+`research/compression`, while `research/gate.mjs` ports the deterministic tiers
+to just-bash.
 
 ### `webcontainer`
 
@@ -171,12 +173,14 @@ boundary, where shell code cannot read the real token.
 
 ## Consolidated architecture
 
-1. `shprout` is the only agent implementation.
-2. Real bash can execute it locally.
-3. `just-bash/browser` executes the exact same file in the browser.
-4. `shprout-polli` remains only a local auth/defaults launcher.
-5. Browser credentials remain host-side and are injected into allowlisted
+1. just-bash is the only browser execution substrate.
+2. `shprout` is the default unfenced/stateful profile.
+3. Classic, split/capped, and self-modifying profiles live under `approaches/`.
+4. Every profile remains executable by real bash and just-bash.
+5. `shprout-polli` remains only a local auth/defaults launcher.
+6. Browser credentials remain host-side and are injected into allowlisted
    Pollinations requests.
-6. Deterministic tests run the canonical script with a scripted secure fetch.
-7. Research harnesses evaluate this agent rather than creating replacement
-   JavaScript or Node agents.
+7. The deterministic gate executes all shell profiles with scripted secure
+   fetch and profile-specific assertions.
+8. Arena and optimization workflows compare or mutate these profiles rather
+   than creating replacement JavaScript or Node runtimes.

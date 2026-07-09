@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "arena": "node research/arena.mjs",
     "dev": "node web/serve.js",
+    "gate": "node research/gate.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "devDependencies": {

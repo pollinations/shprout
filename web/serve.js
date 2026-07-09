@@ -7,6 +7,9 @@ const routes = new Map([
   ['/', { path: new URL('./index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
   ['/index.html', { path: new URL('./index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
   ['/shprout.txt', { path: new URL('../shprout', import.meta.url), type: 'text/plain; charset=utf-8' }],
+  ['/approaches/classic.txt', { path: new URL('../approaches/classic', import.meta.url), type: 'text/plain; charset=utf-8' }],
+  ['/approaches/syscap.txt', { path: new URL('../approaches/syscap', import.meta.url), type: 'text/plain; charset=utf-8' }],
+  ['/approaches/self-mod.txt', { path: new URL('../approaches/self-mod', import.meta.url), type: 'text/plain; charset=utf-8' }],
 ]);
 
 createServer(async (request, response) => {

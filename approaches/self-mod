@@ -1,0 +1,30 @@
+#!/bin/bash
+# self-modifying shprout
+# I copy myself into .shprout/self-mod once, then reread that writable identity.
+# Think in prose, then put one action in a ```bash fence. No fence = done.
+: "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"
+
+state=${SHPROUT_HOME:-.shprout}
+[[ $state == /* ]] && copy="$state/self-mod" || copy="$PWD/$state/self-mod"
+if [[ $0 != "$copy" ]]; then
+  mkdir -p "$state"
+  [[ -s $copy ]] || cp "$0" "$copy"
+  exec bash "$copy" "$@"
+  exit
+fi
+
+task=$1 history=
+for i in {1..20}; do
+  p="<you>$(<"$0")</you>"$'\n<runtime>'"${SHPROUT_RUNTIME:-real bash; cwd=$PWD}"$'</runtime>\n<task>'\
+"$task"$'</task>\n#log\n'"$history"
+  body=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}],stop:[\"\`\`\`\n\"]}" <<<"$p")
+  rsp=$(curl -sS -d "$body" -H "Authorization: Bearer $OPENAI_API_KEY" \
+      -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
+    | jq -r .choices[0].message.content)
+
+  sed 's/^/> /' <<<"$rsp"
+  cmd=$(awk '/^```/{if(f)exit;f=1;next} f' <<<"$rsp")
+  [[ -z $cmd || $cmd == exit ]] && break
+  out=$(eval "$cmd" </dev/null 2>&1); printf '%s\n' "$out"
+  history+=$'\n--- you ---\n'$rsp$'\n--- bash ---\n'$out
+done

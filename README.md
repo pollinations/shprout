@@ -33,6 +33,15 @@ Open [http://localhost:8088](http://localhost:8088). The page runs the same `shp
 
 The Pollinations key remains in the page host and is injected at the restricted network boundary. The shell receives a dummy key and cannot print the real credential.
 
+The approach menu keeps the distinct shell-agent experiments runnable on that same substrate:
+
+- `unfence + state`: prose plus a fenced action, full run history, and optional persistent state.
+- `classic command`: the original smallest bare-command protocol.
+- `system + capped log`: stable source/task system context plus a bounded recent user log.
+- `self-modifying`: a writable identity copied to `.shprout/self-mod` and reread every turn.
+
+These are alternative harnesses, not alternative browser runtimes.
+
 ## Optional state
 
 Create any of these files under `.shprout/`:
@@ -52,3 +61,26 @@ printf '%s\n' 'Make the test suite pass.' > .shprout/GOAL.md
 ```
 
 See [Optimization loops](docs/optimization-loops.md) for the evaluation and self-improvement design, and [Approach archive](docs/approach-archive.md) for the useful ideas retained from earlier branches.
+
+## Evaluate an approach
+
+The deterministic gate runs an agent against scripted model replies inside `just-bash`:
+
+```bash
+npm run gate -- shprout
+npm run gate -- approaches/classic --classic
+npm run gate -- approaches/syscap --split-capped
+npm run gate -- approaches/self-mod --self-mod
+```
+
+It verifies task injection, action execution, cumulative history, termination, and each profile-specific contract. The original compression-search result and its limitations are recorded in [research/compression](research/compression/README.md).
+
+The arena runs any two profiles and models concurrently in isolated virtual filesystems:
+
+```bash
+OPENAI_API_KEY=sk_... OPENAI_BASE_URL=https://gen.pollinations.ai/v1 \
+MODEL_A=claude-large MODEL_B=openai-fast \
+npm run arena -- "your task" shprout approaches/syscap
+```
+
+It emits structured JSON containing each source size, elapsed time, exit code, stdout, and stderr. A scorer or judge can consume that artifact without being coupled to the agent runtime.
