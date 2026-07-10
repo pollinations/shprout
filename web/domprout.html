@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>domprout</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #111214; color: #f4f4f5; }
+    body { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    header { min-height: 48px; padding: 7px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #303236; background: #191a1d; }
+    strong { font-size: 14px; white-space: nowrap; }
+    strong a { margin-left: 8px; color: #8fb5ff; font-size: 12px; font-weight: 500; text-decoration: none; }
+    input { height: 34px; border: 1px solid #414349; border-radius: 4px; padding: 0 10px; background: #23252a; color: inherit; font: inherit; }
+    #task { min-width: 180px; flex: 1; }
+    #model { width: 150px; }
+    button { height: 34px; border: 0; border-radius: 4px; padding: 0 12px; background: #3977e8; color: white; font: 600 13px inherit; cursor: pointer; }
+    button.secondary { background: #2b2d31; border: 1px solid #414349; }
+    button.stop { background: #a83a3a; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    #status { min-width: 70px; color: #a1a1aa; font-size: 12px; text-align: right; }
+    #workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); }
+    iframe { width: 100%; height: 100%; border: 0; background: white; }
+    #log { min-width: 0; overflow: auto; border-left: 1px solid #303236; padding: 8px 10px; background: #101112; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+    #log > div, #log details { padding: 4px 0; border-bottom: 1px solid #202226; }
+    #log .response { color: #a1a1aa; }
+    #log .action { color: #7dd3fc; }
+    #log .observation { color: #86efac; }
+    #log .error { color: #fca5a5; }
+    #log .fanout { color: #d8b4fe; }
+    #log summary { color: #71717a; cursor: pointer; }
+    #log pre { margin: 6px 0 0; white-space: pre-wrap; color: #777b84; }
+    @media (max-width: 760px) {
+      header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+      strong { grid-column: 1; }
+      #status { grid-column: 2; grid-row: 1; min-width: 0; }
+      #task, #model { grid-column: 1 / -1; width: 100%; min-width: 0; }
+      #run { grid-column: 1; }
+      #stop, #auth { grid-column: 2; }
+      #workspace { grid-template-columns: 1fr; grid-template-rows: minmax(0, 2fr) minmax(180px, 1fr); }
+      #log { border-left: 0; border-top: 1px solid #303236; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>domprout <a href="/">shell</a></strong>
+    <input id="model" aria-label="Model" value="claude-large" disabled>
+    <input id="task" aria-label="Task" placeholder="Build or repair the stage" disabled>
+    <button id="run" disabled>Run</button>
+    <button id="stop" class="stop" disabled>Stop</button>
+    <button id="auth" class="secondary">Authorize</button>
+    <span id="status">starting</span>
+  </header>
+  <main id="workspace">
+    <iframe id="stage" title="DOM agent stage" sandbox="allow-scripts"></iframe>
+    <section id="log" aria-label="Agent log"></section>
+  </main>
+
+  <script type="module">
+    import { completeDomproutDemo, runDomprout } from './dom-agent.js';
+
+    const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
+    const KEY_STORE = 'shprout.apiKey';
+    const MODEL_STORE = 'domprout.model';
+    const AUTH_URL = 'https://enter.pollinations.ai/authorize';
+    const $ = selector => document.querySelector(selector);
+    const taskEl = $('#task');
+    const modelEl = $('#model');
+    const runEl = $('#run');
+    const stopEl = $('#stop');
+    const authEl = $('#auth');
+    const statusEl = $('#status');
+    const logEl = $('#log');
+    const iframe = $('#stage');
+    const demo = new URLSearchParams(location.search).has('demo');
+    let controller;
+
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    const incomingKey = fragment.get('api_key');
+    const authError = fragment.get('error');
+    if (incomingKey || authError) history.replaceState(null, '', location.pathname + location.search);
+    if (incomingKey) sessionStorage.setItem(KEY_STORE, incomingKey);
+    const legacyKey = localStorage.getItem(KEY_STORE);
+    if (legacyKey && !sessionStorage.getItem(KEY_STORE)) sessionStorage.setItem(KEY_STORE, legacyKey);
+    if (legacyKey) localStorage.removeItem(KEY_STORE);
+    let key = sessionStorage.getItem(KEY_STORE);
+
+    modelEl.value = localStorage.getItem(MODEL_STORE) || modelEl.value;
+    modelEl.addEventListener('change', () => localStorage.setItem(MODEL_STORE, modelEl.value.trim()));
+
+    const setStatus = value => { statusEl.textContent = value; };
+    const append = (className, text) => {
+      const row = document.createElement('div');
+      row.className = className;
+      row.textContent = text;
+      logEl.append(row);
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+    const appendDetails = (label, text) => {
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      const pre = document.createElement('pre');
+      summary.textContent = label;
+      pre.textContent = text;
+      details.append(summary, pre);
+      logEl.append(details);
+    };
+    const show = event => {
+      const prefix = `[${event.path}]`;
+      if (event.type === 'snapshot') appendDetails(`${prefix} DOM`, event.text);
+      else if (event.type === 'response') appendDetails(`${prefix} model response`, event.text);
+      else if (event.type === 'action') append('action', `${prefix} \`\`\`js\n${event.text}\n\`\`\``);
+      else if (event.type === 'observation') append('observation', `${prefix} ${event.text}`);
+      else if (event.type === 'error') append('error', `${prefix} ${event.text}`);
+      else if (event.type === 'fanout') append('fanout', `${prefix} -> ${event.children.join(', ')}`);
+      else if (event.type === 'start') append('start', `${prefix} turn ${event.turn}`);
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    authEl.addEventListener('click', () => {
+      if (demo) return;
+      if (key) {
+        sessionStorage.removeItem(KEY_STORE);
+        location.reload();
+        return;
+      }
+      const url = new URL(AUTH_URL);
+      url.searchParams.set('client_id', APP_KEY);
+      url.searchParams.set('redirect_uri', location.origin + location.pathname);
+      location.href = url;
+    });
+
+    stopEl.addEventListener('click', () => controller?.abort('stopped'));
+    runEl.addEventListener('click', run);
+    taskEl.addEventListener('keydown', event => { if (event.key === 'Enter') run(); });
+
+    if (authError) append('error', `authorization failed: ${authError}`);
+    if (demo) {
+      key = 'demo';
+      authEl.textContent = 'Demo';
+      authEl.disabled = true;
+      taskEl.value = 'Demonstrate recursive parallel DOM updates';
+      modelEl.value = 'deterministic-demo';
+      taskEl.disabled = false;
+      modelEl.disabled = true;
+      runEl.disabled = false;
+      setStatus('demo ready');
+    } else if (key) {
+      authEl.textContent = 'Sign out';
+      taskEl.disabled = false;
+      modelEl.disabled = false;
+      runEl.disabled = false;
+      setStatus('ready');
+      taskEl.focus();
+    } else {
+      setStatus('not authorized');
+    }
+
+    async function run() {
+      const task = taskEl.value.trim();
+      const model = modelEl.value.trim();
+      if (!task || !model || !key) return;
+      controller?.abort('restarted');
+      controller = new AbortController();
+      logEl.replaceChildren();
+      taskEl.disabled = true;
+      modelEl.disabled = true;
+      runEl.disabled = true;
+      stopEl.disabled = false;
+      setStatus('running');
+      try {
+        const result = await runDomprout({
+          iframe,
+          task,
+          model,
+          key,
+          complete: demo ? completeDomproutDemo : undefined,
+          signal: controller.signal,
+          maxSteps: 24,
+          onEvent: show,
+        });
+        setStatus(result.aborted ? 'stopped' : result.limited ? `limit · ${result.steps}` : `done · ${result.steps}`);
+      } catch (error) {
+        if (controller.signal.aborted) setStatus('stopped');
+        else {
+          append('error', error.stack || error.message || String(error));
+          setStatus('failed');
+        }
+      } finally {
+        taskEl.disabled = false;
+        modelEl.disabled = false;
+        runEl.disabled = false;
+        stopEl.disabled = true;
+        taskEl.focus();
+      }
+    }
+  </script>
+</body>
+</html>

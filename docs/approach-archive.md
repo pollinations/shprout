@@ -1,8 +1,10 @@
 # Shprout approach archive
 
 This document preserves the useful ideas from the experimental branches while
-the project converges on one browser runtime: just-bash. Distinct shell-agent
-profiles remain runnable because they test materially different harness ideas.
+the project converges on one browser shell runtime: just-bash. Distinct
+shell-agent profiles remain runnable because they test materially different
+harness ideas. The direct-DOM experiment remains separate because its tool is a
+live browser subtree rather than a shell.
 
 ## Canonical behavior
 
@@ -113,15 +115,32 @@ just-bash.
 
 ### `jsprout`
 
-Useful ideas:
+Useful ideas retained in the active `domprout` experiment:
 
 - Inject a deliberately small tool scope into generated code.
 - Include a DOM snapshot before each turn.
 - Treat thrown errors as observations and allow a repair turn.
 - Use an array return protocol for continuation and fan-out.
+- Let a branch delegate work recursively to specific parts of its own subtree.
+- Run independent child branches concurrently.
 
-These ideas are recorded for future orchestration work. Direct AsyncFunction
-execution is not part of the consolidated shell agent.
+The archived progression was reconstructed from the branch history rather than
+from one snapshot: loop and console-error repair, recursive self-calls, message
+history, scoped `AsyncFunction` injection, array fan-out, a unified child
+protocol, fresh DOM snapshots, and finally abort/budget/retry handling.
+
+`domprout` modernizes that line with deterministic branch paths, global step and
+depth limits, capped current-only DOM snapshots, and a single return contract:
+`[]` finishes, `[{}]` continues or repairs the same subtree, and
+`[{ task, target }]` delegates to a selector relative to the current subtree.
+Parallel selectors must resolve exactly once and cannot overlap.
+
+Generated code now runs in a visible opaque-origin iframe with network access
+disabled. The parent page owns OAuth credentials and model requests, so an
+action cannot inspect the Pollinations key or the host page. The model still
+sees the orchestrator and sandbox source, preserving the self-describing
+runtime idea. The deterministic `/domprout.html?demo=1` path exercises the real
+iframe bridge, parallel siblings, and nested recursion without an API call.
 
 ### `nodeprout`
 
@@ -154,8 +173,9 @@ Useful ideas:
 - Combine objective artifact metrics with a model judge.
 - Keep each run isolated and abortable.
 
-The direct-DOM JavaScript agent is retired. A future arena should run two
-instances of the same canonical shprout script in separate just-bash filesystems.
+The old direct-DOM arena's subtree fan-out is preserved in `domprout`. Model and
+profile comparison remains a separate concern: the current arena runs two
+canonical shell profiles in isolated just-bash filesystems.
 
 ### `codex/polli-cli-webcontainer-demo`
 
@@ -173,7 +193,7 @@ boundary, where shell code cannot read the real token.
 
 ## Consolidated architecture
 
-1. just-bash is the only browser execution substrate.
+1. just-bash is the only browser shell execution substrate.
 2. `shprout` is the default unfenced/stateful profile.
 3. Classic, split/capped, and self-modifying profiles live under `approaches/`.
 4. Every profile remains executable by real bash and just-bash.
@@ -182,5 +202,7 @@ boundary, where shell code cannot read the real token.
    Pollinations requests.
 7. The deterministic gate executes all shell profiles with scripted secure
    fetch and profile-specific assertions.
-8. Arena and optimization workflows compare or mutate these profiles rather
-   than creating replacement JavaScript or Node runtimes.
+8. `domprout` is a separate, sandboxed direct-DOM harness, not an alternative
+   shell implementation.
+9. Arena and optimization workflows compare or mutate harnesses through shared
+   result formats rather than coupling their runtimes.

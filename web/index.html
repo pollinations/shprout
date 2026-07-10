@@ -12,6 +12,7 @@
     body { display: grid; grid-template-rows: auto minmax(0, 1fr); }
     header { min-height: 48px; padding: 7px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #303236; background: #18191b; }
     strong { font-size: 14px; margin-right: 4px; }
+    strong a { margin-left: 8px; color: #8fb5ff; font-size: 12px; font-weight: 500; text-decoration: none; }
     input { min-width: 140px; flex: 1; height: 34px; border: 1px solid #414349; border-radius: 4px; padding: 0 10px; background: #222428; color: inherit; font: inherit; }
     select { height: 34px; max-width: 190px; border: 1px solid #414349; border-radius: 4px; padding: 0 8px; background: #222428; color: inherit; font: inherit; }
     input:focus { outline: 2px solid #4f8cff; outline-offset: 1px; }
@@ -33,7 +34,7 @@
 </head>
 <body>
   <header>
-    <strong>shprout</strong>
+    <strong>shprout <a href="/domprout.html">DOM</a></strong>
     <select id="profile" aria-label="Agent approach" disabled>
       <option value="unfence">unfence + state</option>
       <option value="classic">classic command</option>

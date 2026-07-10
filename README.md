@@ -42,6 +42,14 @@ The approach menu keeps the distinct shell-agent experiments runnable on that sa
 
 These are alternative harnesses, not alternative browser runtimes.
 
+The separate [DOM agent](http://localhost:8088/domprout.html) runs generated
+JavaScript against assigned page subtrees. It can delegate non-overlapping DOM
+regions to parallel child branches and recurse further within a region. Model
+access and the Pollinations key stay in the parent page; actions run in an
+opaque-origin iframe with network access disabled. A deterministic
+[`?demo=1`](http://localhost:8088/domprout.html?demo=1) run exercises the real
+sandbox and recursive fan-out without authentication.
+
 ## Optional state
 
 Create any of these files under `.shprout/`:
