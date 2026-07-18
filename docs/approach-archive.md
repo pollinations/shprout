@@ -14,7 +14,9 @@ The `unfence` branch is the behavioral base for the canonical agent.
 - No fenced block means the model is done.
 - The complete response and command output are appended to history.
 - Command failures are captured as output, so the next turn can recover.
-- Generation stops at the first closing fence to avoid transcript spillover.
+- Missing or error model responses stop the run instead of looking complete.
+- Only the first fenced block executes; later response text is ignored by the
+  action extractor.
 - Model prose is printed with a `> ` prefix so it cannot be confused with
   command output.
 
@@ -82,6 +84,22 @@ Useful ideas:
 
 This work is fully contained in the later `compress-bench` branch.
 
+### `lisp`
+
+The local-only `approaches/lisp` profile tests one idea that is materially
+different from disposable shell commands: model-written forms are evaluated in
+the same SBCL image as the recursive agent loop. A function defined on one turn
+is immediately callable on the next without writing or reloading a file.
+
+The profile deliberately reuses the existing fenced-action protocol,
+OpenAI-compatible endpoint, `curl`, and `jq`; it does not import the reference
+agent's tool-call schema, Quicklisp dependencies, or unbounded memory file. A
+deterministic fixture proves condition repair and live-image definition reuse.
+Because `eval` can inspect the whole process, including credentials, this
+profile is excluded from the browser. The bundled Seatbelt wrapper limits
+writes but does not provide the disposable isolation used by the reference
+experiment.
+
 ### `compress-bench`
 
 Useful ideas to preserve as tests:
@@ -109,9 +127,12 @@ Useful ideas:
 - Deterministic fake-model gates before expensive live evaluation.
 - Side-by-side model comparison with objective and model-based judging.
 
-WebContainer boot, cross-origin isolation, shell shims, and parallel agent
+WebContainer boot, cross-origin isolation, shell shims, and parallel shell-agent
 implementations are retired. The browser now executes the canonical script in
-just-bash.
+just-bash. The active workshop retains the inspectable workspace, run metrics,
+abort control, and deterministic fake-model path without exposing a second
+shell-agent implementation. The separate direct-DOM recursion lab remains
+active because it exercises a different action substrate.
 
 ### `jsprout`
 
@@ -187,8 +208,8 @@ Useful ideas:
 - Treat Polli as a composable model interface with explicit auth status.
 
 Running the real npm Polli CLI requires Node and conflicts with the single
-just-bash runtime. The consolidated browser calls the Pollinations API through
-just-bash's allowlisted network layer and injects Authorization at the host
+just-bash runtime. The consolidated browser calls only the Pollinations chat
+endpoint through a secure-fetch bridge and injects Authorization at the host
 boundary, where shell code cannot read the real token.
 
 ## Consolidated architecture

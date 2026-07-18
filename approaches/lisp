@@ -1,0 +1,119 @@
+#!/usr/bin/env -S sbcl --script
+;;;; lispprout
+;;;; Think in prose, then put exactly one Common Lisp form in a ```lisp fence.
+;;;; The form is evaluated in this live image. No fence means the task is done.
+(require :asdf)
+
+(defpackage :lispprout (:use :cl))
+(in-package :lispprout)
+
+(defparameter *source-path* *load-truename*)
+(defparameter *max-turns*
+  (parse-integer (or (uiop:getenv "SHPROUT_MAX_TURNS") "20")))
+
+(defun required-env (name)
+  (or (uiop:getenv name) (error "~a is required" name)))
+
+(defun run (argv &key input)
+  (uiop:run-program argv :input input :output :string :error-output :string))
+
+(defun call-model (prompt)
+  (let* ((model (required-env "MODEL"))
+         (key (required-env "OPENAI_API_KEY"))
+         (base (string-right-trim "/" (required-env "OPENAI_BASE_URL")))
+         (body (run (list "jq" "-nc" "--arg" "model" model "--arg" "prompt" prompt
+                          "{model:$model,messages:[{role:\"user\",content:$prompt}],stop:[\"```\\n\"]}")))
+         (raw (run (list "curl" "-fsS" "-H" "Content-Type: application/json"
+                         "-H" (format nil "Authorization: Bearer ~a" key)
+                         "--data-binary" "@-" (format nil "~a/chat/completions" base))
+                   :input (make-string-input-stream body))))
+    (run (list "jq" "-er" ".choices[0].message.content // error(.error.message // \"missing model content\")")
+         :input (make-string-input-stream raw))))
+
+(defun read-fixture (path)
+  (with-open-file (in path)
+    (loop with eof = (gensym)
+          for value = (read in nil eof)
+          until (eq value eof)
+          collect value)))
+
+(defparameter *fixture-path* (uiop:getenv "SHPROUT_LISP_FIXTURE"))
+(defparameter *fixture* (and *fixture-path* (read-fixture *fixture-path*)))
+
+(defun complete (prompt)
+  (let ((trace (uiop:getenv "SHPROUT_TRACE")))
+    (when trace
+      (with-open-file (out trace :direction :output :if-exists :append
+                                 :if-does-not-exist :create)
+        (format out "~s~%" prompt))))
+  (if *fixture-path*
+      (or (pop *fixture*) (error "fixture responses exhausted"))
+      (call-model prompt)))
+
+(defun fenced-form (response)
+  (let* ((marker "```lisp")
+         (start (search marker response :test #'char-equal))
+         (body (and start (position #\Newline response :start start)))
+         (end (and body (search "```" response :start2 (1+ body)))))
+    (and body (subseq response (1+ body) (or end (length response))))))
+
+(defun read-one (source)
+  (let ((eof (gensym)))
+    (multiple-value-bind (form end) (read-from-string source nil eof)
+      (when (eq form eof) (error "empty form"))
+      (multiple-value-bind (extra ignored)
+          (read-from-string source nil eof :start end)
+        (declare (ignore ignored))
+        (unless (eq extra eof) (error "return exactly one form; use PROGN to group work")))
+      form)))
+
+(defun evaluate (source)
+  (handler-case
+      (let ((stream (make-string-output-stream)) value)
+        (let ((*standard-output* stream) (*error-output* stream) (*trace-output* stream))
+          (setf value (eval (read-one source))))
+        (let ((output (get-output-stream-string stream)))
+          (with-output-to-string (result)
+            (write-string output result)
+            (when (and (plusp (length output))
+                       (char/= (char output (1- (length output))) #\Newline))
+              (terpri result))
+            (format result "=> ~s" value))))
+    (error (condition) (format nil "ERROR: ~a" condition))))
+
+(defun speak (response)
+  (with-input-from-string (in response)
+    (loop for line = (read-line in nil nil)
+          while line do (format t "> ~a~%" line))))
+
+(defun prompt (task history)
+  (format nil "<you>~a</you>~%<runtime>SBCL live image; one Common Lisp form per turn; definitions persist; arbitrary eval, so assume a sandbox</runtime>~%<task>~a</task>~%#log~%~a"
+          (uiop:read-file-string *source-path*) task history))
+
+(defun agent-loop (task history turn)
+  (when (> turn *max-turns*)
+    (error "turn limit ~d reached" *max-turns*))
+  (let* ((response (complete (prompt task history)))
+         (source (fenced-form response)))
+    (speak response)
+    (if (not source)
+        response
+        (let ((observation (evaluate source)))
+          (format t "~a~%" observation)
+          (agent-loop task
+                      (format nil "~a~%--- assistant ---~%~a~%--- lisp ---~%~a"
+                              history response observation)
+                      (1+ turn))))))
+
+(defun main ()
+  (let ((args (uiop:command-line-arguments)))
+    (unless args
+      (format *error-output* "usage: approaches/lisp <task>~%")
+      (uiop:quit 2))
+    (handler-case
+        (agent-loop (format nil "~{~a~^ ~}" args) "" 1)
+      (error (condition)
+        (format *error-output* "lispprout: ~a~%" condition)
+        (uiop:quit 1)))))
+
+(main)

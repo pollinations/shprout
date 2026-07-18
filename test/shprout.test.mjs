@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { Bash } from 'just-bash/browser';
+import { POLLI_ENDPOINT, createApiBridge } from '../web/workshop-runtime.js';
 
 const source = await readFile(new URL('../shprout', import.meta.url), 'utf8');
-const browserSource = await readFile(new URL('../web/index.html', import.meta.url), 'utf8');
 const encoder = new TextEncoder();
 
 function createRun(responses, { heartbeat = false } = {}) {
@@ -66,6 +66,7 @@ test('runs fenced bash and carries refreshed state and output into the next turn
   assert.match(firstPrompt, /<goal>Reach the old goal\.<\/goal>/);
   assert.match(firstPrompt, /<recent>A previous run found a clue\.<\/recent>/);
   assert.doesNotMatch(firstPrompt, /<heartbeat>Check whether the goal is blocked\.<\/heartbeat>/);
+  assert.equal(requests[0].body.stop, undefined);
 
   const secondPrompt = requests[1].body.messages[0].content;
   assert.match(secondPrompt, /<goal>Reach the new goal\.<\/goal>/);
@@ -83,6 +84,15 @@ test('a prose-only response is printed and terminates without executing', async 
   assert.equal(requests.length, 1);
 });
 
+test('a malformed model response fails instead of looking complete', async () => {
+  for (const content of [null, { unexpected: true }]) {
+    const { bash } = createRun([content]);
+    const result = await bash.exec("bash /home/user/shprout 'must fail closed'");
+    assert.notEqual(result.exitCode, 0);
+    assert.match(result.stderr, /model request failed/);
+  }
+});
+
 test('heartbeat state is included only when explicitly enabled', async () => {
   const { bash, requests } = createRun(['HEARTBEAT_OK'], { heartbeat: true });
   const result = await bash.exec("bash /home/user/shprout 'heartbeat'");
@@ -91,8 +101,47 @@ test('heartbeat state is included only when explicitly enabled', async () => {
   assert.match(requests[0].body.messages[0].content, /<heartbeat>Check whether the goal is blocked\.<\/heartbeat>/);
 });
 
-test('browser network config bypasses the unavailable DNS resolver', () => {
-  assert.match(browserSource, /denyPrivateRanges:\s*false/);
-  assert.match(browserSource, /allowedMethods:\s*\['POST'\]/);
-  assert.match(browserSource, /Authorization:\s*`Bearer \$\{apiKey\}`/);
+test('browser bridge restricts the API request and injects the host key', async () => {
+  const calls = [];
+  const events = [];
+  const bridge = createApiBridge({
+    apiKey: 'sk_host_secret',
+    onEvent: event => events.push(event),
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'done' } }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await bridge.fetch(POLLI_ENDPOINT, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer managed-by-browser' },
+    body: '{"model":"test"}',
+  });
+
+  assert.equal(result.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, POLLI_ENDPOINT);
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer sk_host_secret');
+  assert.equal(calls[0].options.body, '{"model":"test"}');
+  assert.deepEqual(events.map(event => event.type), ['request', 'response']);
+  await assert.rejects(
+    bridge.fetch('https://example.test/steal', { method: 'POST' }),
+    /Network denied/,
+  );
+
+  const failedEvents = [];
+  const failedBridge = createApiBridge({
+    apiKey: 'sk_host_secret',
+    onEvent: event => failedEvents.push(event),
+    fetchImpl: async () => { throw new TypeError('offline'); },
+  });
+  await assert.rejects(
+    failedBridge.fetch(POLLI_ENDPOINT, { method: 'POST', body: '{}' }),
+    /offline/,
+  );
+  assert.deepEqual(failedEvents.map(event => event.type), ['request', 'error']);
 });

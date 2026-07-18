@@ -3,191 +3,94 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>shprout</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
-  <style>
-    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #101112; color: #f4f4f5; }
-    body { display: grid; grid-template-rows: auto minmax(0, 1fr); }
-    header { min-height: 48px; padding: 7px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #303236; background: #18191b; }
-    strong { font-size: 14px; margin-right: 4px; }
-    strong a { margin-left: 8px; color: #8fb5ff; font-size: 12px; font-weight: 500; text-decoration: none; }
-    input { min-width: 140px; flex: 1; height: 34px; border: 1px solid #414349; border-radius: 4px; padding: 0 10px; background: #222428; color: inherit; font: inherit; }
-    select { height: 34px; max-width: 190px; border: 1px solid #414349; border-radius: 4px; padding: 0 8px; background: #222428; color: inherit; font: inherit; }
-    input:focus { outline: 2px solid #4f8cff; outline-offset: 1px; }
-    button { height: 34px; border: 0; border-radius: 4px; padding: 0 12px; background: #3977e8; color: white; font: 600 13px inherit; cursor: pointer; }
-    button.secondary { background: #2b2d31; border: 1px solid #414349; }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-    #status { min-width: 84px; color: #a1a1aa; font-size: 12px; text-align: right; }
-    #term { min-width: 0; min-height: 0; overflow: hidden; padding: 10px; }
-    @media (max-width: 640px) {
-      header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
-      strong { grid-column: 1; grid-row: 1; }
-      #status { grid-column: 2; grid-row: 1; min-width: 0; }
-      select { grid-column: 1 / -1; max-width: none; width: 100%; }
-      input { grid-column: 1 / -1; min-width: 0; }
-      #run { grid-column: 1; width: 100%; }
-      #auth { grid-column: 2; min-width: 96px; }
-    }
-  </style>
+  <meta name="color-scheme" content="light">
+  <title>shprout experiments</title>
+  <link rel="stylesheet" href="/index.css">
 </head>
 <body>
-  <header>
-    <strong>shprout <a href="/domprout.html">DOM</a></strong>
-    <select id="profile" aria-label="Agent approach" disabled>
-      <option value="unfence">unfence + state</option>
-      <option value="classic">classic command</option>
-      <option value="syscap">system + capped log</option>
-      <option value="self-mod">self-modifying</option>
-    </select>
-    <input id="task" aria-label="Task" placeholder="Give the agent a task" disabled>
-    <button id="run" disabled>Run</button>
-    <button id="auth" class="secondary">Authorize</button>
-    <span id="status">starting</span>
+  <header class="directory-header">
+    <a class="brand" href="/" aria-current="page">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="sprout"></i></span>
+      <strong>shprout</strong>
+    </a>
+    <span class="directory-status"><span aria-hidden="true"></span>2 active</span>
   </header>
-  <main id="term"></main>
 
-  <script type="module">
-    import { Terminal } from 'https://esm.sh/@xterm/xterm@5.5.0';
-    import { FitAddon } from 'https://esm.sh/@xterm/addon-fit@0.10.0';
-    import { Bash } from 'https://esm.sh/just-bash@3.1.0/browser?bundle';
+  <main>
+    <div class="title-row">
+      <div>
+        <p>LAB DIRECTORY</p>
+        <h1>Experiments</h1>
+      </div>
+      <a class="archive-link" href="https://github.com/pollinations/shprout" target="_blank" rel="noreferrer" title="Repository">
+        <i data-lucide="folder-git-2"></i><span>Repository</span>
+      </a>
+    </div>
 
-    const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
-    const KEY_STORE = 'shprout.apiKey';
-    const POLLI_AUTH = 'https://enter.pollinations.ai/authorize';
-    const POLLI_BASE = 'https://gen.pollinations.ai/v1';
-    const RUNTIME = 'just-bash 3.1.0 in a browser; virtual filesystem and built-in commands only; no Node, npm, Python, native binaries, or unrestricted network';
-    const PROFILES = {
-      unfence: { url: '/shprout.txt', path: '/home/user/shprout' },
-      classic: { url: '/approaches/classic.txt', path: '/home/user/approaches/classic' },
-      syscap: { url: '/approaches/syscap.txt', path: '/home/user/approaches/syscap' },
-      'self-mod': { url: '/approaches/self-mod.txt', path: '/home/user/approaches/self-mod' },
-    };
+    <section class="experiment-grid" aria-label="Active web experiments">
+      <article class="experiment-card">
+        <div class="experiment-preview shell-preview">
+          <div class="preview-bar"><span>shprout</span><small>33 lines</small></div>
+          <pre aria-hidden="true"><span>p=</span>"&lt;you&gt;$(source)&lt;/you&gt; ..."
+<span>body=</span>$(jq -Rs '{model,messages}' &lt;&lt;&lt;"$p")
+<span>rsp=</span>$(curl ... | jq -r .choices[0]...)
+<span>cmd=</span>$(awk '/^```/{...}' &lt;&lt;&lt;"$rsp")
+<span>out=</span>$(eval "$cmd")
+<span>history+=</span>"$rsp $out"</pre>
+          <a href="/workshop.html" aria-label="Open shell workshop"></a>
+          <span class="preview-label">source loop</span>
+        </div>
+        <div class="experiment-info">
+          <div class="experiment-name">
+            <span class="experiment-icon shell"><i data-lucide="terminal-square"></i></span>
+            <div>
+              <h2>Shell workshop</h2>
+              <p>just-bash / files / state</p>
+            </div>
+          </div>
+          <div class="experiment-actions">
+            <a class="button secondary" href="/workshop.html?demo=1"><i data-lucide="play"></i><span>Demo</span></a>
+            <a class="button primary" href="/workshop.html"><span>Open</span><i data-lucide="arrow-up-right"></i></a>
+          </div>
+        </div>
+      </article>
 
-    const profileEl = document.querySelector('#profile');
-    const taskEl = document.querySelector('#task');
-    const runEl = document.querySelector('#run');
-    const authEl = document.querySelector('#auth');
-    const statusEl = document.querySelector('#status');
-    const term = new Terminal({ convertEol: true, fontSize: 13, theme: { background: '#101112' } });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(document.querySelector('#term'));
-    fit.fit();
-    addEventListener('resize', () => fit.fit());
+      <article class="experiment-card">
+        <div class="experiment-preview dom-preview">
+          <div class="preview-bar"><span>DOM stage</span><small>4 branches</small></div>
+          <div class="dom-scene" aria-hidden="true">
+            <div class="dom-title"><b>Parallel DOM work</b><span>0</span></div>
+            <div class="dom-panels">
+              <div><small>0.0</small><strong>Plan</strong><span>Nested branch complete</span><em>0.0.0</em></div>
+              <div><small>0.1</small><strong>Verify</strong><span>Sibling branch complete</span><em>OK</em></div>
+            </div>
+          </div>
+          <a href="/domprout.html" aria-label="Open DOM lab"></a>
+          <span class="preview-label">parallel DOM</span>
+        </div>
+        <div class="experiment-info">
+          <div class="experiment-name">
+            <span class="experiment-icon dom"><i data-lucide="git-branch"></i></span>
+            <div>
+              <h2>DOM recursion lab</h2>
+              <p>sandbox / fan-out / repair</p>
+            </div>
+          </div>
+          <div class="experiment-actions">
+            <a class="button secondary" href="/domprout.html?demo=1"><i data-lucide="play"></i><span>Demo</span></a>
+            <a class="button primary" href="/domprout.html"><span>Open</span><i data-lucide="arrow-up-right"></i></a>
+          </div>
+        </div>
+      </article>
+    </section>
 
-    const setStatus = text => { statusEl.textContent = text; };
-    const write = text => term.write(String(text).replaceAll('\n', '\r\n'));
-    const line = text => write(`${text}\n`);
-    const shellQuote = text => `'${text.replaceAll("'", "'\\''")}'`;
+    <footer class="directory-footer">
+      <span>one shell runtime</span>
+      <span>two agent surfaces</span>
+      <span>five archived lineages</span>
+    </footer>
+  </main>
 
-    const fragment = new URLSearchParams(location.hash.slice(1));
-    const incomingKey = fragment.get('api_key');
-    const authError = fragment.get('error');
-    if (incomingKey || authError) history.replaceState(null, '', location.pathname + location.search);
-    if (incomingKey) sessionStorage.setItem(KEY_STORE, incomingKey);
-
-    const legacyKey = localStorage.getItem(KEY_STORE);
-    if (legacyKey && !sessionStorage.getItem(KEY_STORE)) sessionStorage.setItem(KEY_STORE, legacyKey);
-    if (legacyKey) localStorage.removeItem(KEY_STORE);
-    let apiKey = sessionStorage.getItem(KEY_STORE);
-    let bash;
-
-    authEl.addEventListener('click', () => {
-      if (apiKey) {
-        sessionStorage.removeItem(KEY_STORE);
-        location.reload();
-        return;
-      }
-      const url = new URL(POLLI_AUTH);
-      url.searchParams.set('client_id', APP_KEY);
-      url.searchParams.set('redirect_uri', location.origin + location.pathname);
-      location.href = url;
-    });
-
-    runEl.addEventListener('click', run);
-    taskEl.addEventListener('keydown', event => { if (event.key === 'Enter') run(); });
-
-    if (authError) line(`\x1b[31mauthorization failed: ${authError}\x1b[0m`);
-    await boot();
-
-    async function boot() {
-      if (!apiKey) {
-        setStatus('not authorized');
-        line('\x1b[33mAuthorize to use your Pollinations balance.\x1b[0m');
-        return;
-      }
-
-      authEl.textContent = 'Sign out';
-      setStatus('loading shell');
-      line('\x1b[2mloading shprout in just-bash...\x1b[0m');
-      try {
-        const entries = await Promise.all(Object.entries(PROFILES).map(async ([name, profile]) => {
-          const response = await fetch(profile.url);
-          if (!response.ok) throw new Error(`${profile.url}: HTTP ${response.status}`);
-          return [name, profile.path, await response.text()];
-        }));
-        const files = Object.fromEntries(entries.map(([, path, source]) => [path, source]));
-        bash = new Bash({
-          files,
-          cwd: '/home/user',
-          env: {
-            OPENAI_API_KEY: 'managed-by-browser',
-            OPENAI_BASE_URL: POLLI_BASE,
-            MODEL: 'claude-large',
-            SHPROUT_RUNTIME: RUNTIME,
-          },
-          network: {
-            allowedUrlPrefixes: [{
-              url: `${POLLI_BASE}/`,
-              transform: [{ headers: { Authorization: `Bearer ${apiKey}` } }],
-            }],
-            allowedMethods: ['POST'],
-            // esm.sh polyfills process, which makes just-bash enable its Node-only
-            // DNS rebinding check. Browser fetch cannot perform that DNS lookup.
-            denyPrivateRanges: false,
-          },
-          executionLimits: {
-            maxCommandCount: 5000,
-            maxLoopIterations: 5000,
-          },
-        });
-        window.shprout = bash;
-        setStatus('ready');
-        line('\x1b[32mready\x1b[0m');
-        profileEl.disabled = false;
-        taskEl.disabled = false;
-        runEl.disabled = false;
-        taskEl.focus();
-      } catch (error) {
-        setStatus('failed');
-        line(`\x1b[31m${error.stack || error}\x1b[0m`);
-      }
-    }
-
-    async function run() {
-      const task = taskEl.value.trim();
-      if (!task || !bash) return;
-      taskEl.disabled = true;
-      runEl.disabled = true;
-      setStatus('running');
-      const profile = PROFILES[profileEl.value];
-      line(`\n\x1b[36m$ ${profileEl.value} ${shellQuote(task)}\x1b[0m`);
-      try {
-        const result = await bash.exec(`bash ${profile.path} ${shellQuote(task)}`);
-        if (result.stdout) write(result.stdout);
-        if (result.stderr) write(`\x1b[31m${result.stderr}\x1b[0m`);
-        line(`\x1b[2m[exit ${result.exitCode}]\x1b[0m`);
-      } catch (error) {
-        line(`\x1b[31m${error.stack || error}\x1b[0m`);
-      } finally {
-        setStatus('ready');
-        taskEl.disabled = false;
-        runEl.disabled = false;
-        taskEl.focus();
-      }
-    }
-  </script>
+  <script type="module" src="/index.js"></script>
 </body>
 </html>

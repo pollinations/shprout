@@ -1,8 +1,29 @@
 # shprout
 
-`shprout` is a bash loop that shows an LLM its own source, runs one fenced bash action, returns the output, and repeats.
+[`shprout`](shprout) is a 33-line bash loop that shows an LLM its own source,
+runs one fenced bash action, returns the output, and repeats.
 
 The source file is both the harness and most of the prompt. The model also sees an explicit runtime description, so the same agent can understand whether it is in real bash or the browser's constrained `just-bash` environment.
+
+## The loop
+
+The center of the agent is deliberately ordinary shell:
+
+```bash
+p="<you>$(<"$0")</you> ... <task>$task</task> ... $history"
+body=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p")
+rsp=$(curl ... -d "$body" ... | jq -er '.choices[0].message.content|strings') \
+  || { echo 'shprout: model request failed' >&2; exit 1; }
+cmd=$(awk '/^```/{if(f)exit;f=1;next} f' <<<"$rsp")
+out=$(eval "$cmd" </dev/null 2>&1)
+history+=$'\n--- you ---\n'$rsp$'\n--- bash ---\n'$out
+```
+
+`p` is the complete world the model sees. `jq -Rs` reads that world as one raw
+string and constructs the request body structurally, so the shell never has to
+escape prompt text as JSON by hand. The response's first fenced block is the
+action; its output becomes the next observation. Everything else in the repo is
+an execution surface, experiment, or evaluator around this loop.
 
 ## Run locally
 
@@ -29,18 +50,45 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:8088](http://localhost:8088). The page runs the same `shprout` file with [`just-bash`](https://github.com/vercel-labs/just-bash). It does not use WebContainer or require cross-origin isolation.
+Open the [experiment index](http://localhost:8088), then enter the
+[shell workshop](http://localhost:8088/workshop.html). The workshop runs the
+same `shprout` file with [`just-bash`](https://github.com/vercel-labs/just-bash).
+It does not use WebContainer or require cross-origin isolation.
 
-The Pollinations key remains in the page host and is injected at the restricted network boundary. The shell receives a dummy key and cannot print the real credential.
+The Pollinations key remains in session storage in the page host and is injected
+at the restricted network boundary. The OAuth callback is checked against a
+one-time state value. The shell receives a dummy key and cannot print the real
+credential.
 
-The approach menu keeps the distinct shell-agent experiments runnable on that same substrate:
+The workshop keeps the shell loop visible without replacing it with browser-specific
+agent code:
 
-- `unfence + state`: prose plus a fenced action, full run history, and optional persistent state.
-- `classic command`: the original smallest bare-command protocol.
-- `system + capped log`: stable source/task system context plus a bounded recent user log.
-- `self-modifying`: a writable identity copied to `.shprout/self-mod` and reread every turn.
+- `Preview` renders the first HTML artifact in an opaque, network-disabled iframe.
+- `Activity` shows each model thought and fenced bash action at the API boundary.
+- `Workspace` edits both generated files and `SOUL`, `GOAL`, `RECENT`, and opt-in `HEARTBEAT` state through one file browser.
+- `Transcript` preserves the exact stdout, stderr, and exit status for debugging.
+- `Source` shows the exact shell harness mounted into the virtual filesystem.
 
-These are alternative harnesses, not alternative browser runtimes.
+A deterministic [`?demo=1`](http://localhost:8088/workshop.html?demo=1) run drives the real
+shell loop through three scripted model turns, builds an interactive artifact,
+and verifies it without authentication. The classic, capped-history, and
+self-modifying harness experiments remain available through the gate and arena;
+they are not separate browser applications.
+
+There is also a local-only Common Lisp experiment inspired by
+[An Agent in 100 Lines of Lisp](https://thebeach.dev/posts/lisp-agent/):
+
+```bash
+./shprout-polli --lisp --sandbox "compute something, then reuse the function"
+```
+
+It requires SBCL, `curl`, and `jq`. The model emits one fenced Lisp form per
+turn; `eval` runs it in the agent's live image, so definitions persist for the
+rest of the run. This is the property under test, not recursion by itself.
+Unlike the browser harness, the evaluated form can inspect process state and
+credentials. The `--sandbox` example uses the bundled macOS Seatbelt wrapper,
+which limits writes but is not a disposable isolation boundary; do not expose
+credentials or readable files you are unwilling to give the generated code.
 
 The separate [DOM agent](http://localhost:8088/domprout.html) runs generated
 JavaScript against assigned page subtrees. It can delegate non-overlapping DOM

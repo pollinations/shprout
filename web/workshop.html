@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>shprout workshop</title>
+  <link rel="stylesheet" href="/workshop.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <a class="brand-home" href="/" aria-label="All experiments">
+        <span class="brand-mark" aria-hidden="true"><i data-lucide="sprout"></i></span>
+        <strong>shprout</strong>
+      </a>
+      <nav aria-label="Experiments">
+        <a href="/workshop.html" aria-current="page">Workshop</a>
+        <a href="/domprout.html">DOM lab</a>
+      </nav>
+    </div>
+    <div class="header-actions">
+      <span id="status" class="status" data-kind="booting">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="status-label">starting</span>
+      </span>
+      <button id="reset" class="icon-button quiet" type="button" title="Reset workspace" aria-label="Reset workspace" disabled>
+        <i data-lucide="rotate-ccw"></i>
+      </button>
+      <button id="auth" class="button secondary" type="button">
+        <i data-lucide="key-round"></i>
+        <span>Authorize</span>
+      </button>
+    </div>
+  </header>
+
+  <form id="composer" class="composer">
+    <select id="example" aria-label="Example task" title="Choose an example">
+      <option value="">Examples</option>
+      <option value="Build a playful interactive signal garden in index.html. Keep it self-contained and verify it.">Signal garden</option>
+      <option value="Create an animated generative poster in index.html with controls for color and motion.">Generative poster</option>
+      <option value="Build a tiny playable rhythm toy in index.html using only browser APIs.">Rhythm toy</option>
+      <option value="Inspect the workspace, improve the current artifact, and record what changed in .shprout/RECENT.md.">Improve current work</option>
+    </select>
+    <label class="sr-only" for="task">Task</label>
+    <input id="task" autocomplete="off" placeholder="What should shprout make?" disabled>
+    <button id="run" class="button primary" type="submit" disabled>
+      <i data-lucide="play"></i>
+      <span>Run</span>
+    </button>
+    <button id="stop" class="icon-button danger" type="button" title="Stop run" aria-label="Stop run" hidden disabled>
+      <i data-lucide="square"></i>
+    </button>
+  </form>
+
+  <main class="workspace">
+    <section id="canvas-panel" class="canvas-panel" aria-label="Artifact">
+      <div class="panel-toolbar">
+        <div class="view-tabs" role="tablist" aria-label="Artifact views">
+          <button class="view-tab active" type="button" role="tab" aria-selected="true" data-view="preview">
+            <i data-lucide="monitor"></i><span>Preview</span>
+          </button>
+          <button class="view-tab" type="button" role="tab" aria-selected="false" data-view="transcript">
+            <i data-lucide="terminal"></i><span>Transcript</span>
+          </button>
+          <button class="view-tab" type="button" role="tab" aria-selected="false" data-view="source">
+            <i data-lucide="file-code-2"></i><span>Source</span>
+          </button>
+        </div>
+        <span id="artifact-name" class="panel-context">no artifact</span>
+        <button id="expand" class="icon-button quiet" type="button" title="Expand preview" aria-label="Expand preview">
+          <i data-lucide="maximize-2"></i>
+        </button>
+      </div>
+      <div id="preview-view" class="artifact-view active" role="tabpanel">
+        <iframe id="preview" title="Generated artifact" sandbox="allow-scripts" referrerpolicy="no-referrer" csp="default-src 'none'; base-uri 'none'; connect-src 'none'; font-src data:; form-action 'none'; img-src data: blob:; media-src data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'" hidden></iframe>
+        <div id="preview-empty" class="empty-state">
+          <i data-lucide="file-code-2" aria-hidden="true"></i>
+          <strong>No HTML artifact yet</strong>
+          <span>index.html will appear here</span>
+        </div>
+      </div>
+      <pre id="transcript-view" class="artifact-view transcript" role="tabpanel" hidden>Run shprout to see the exact shell transcript.</pre>
+      <pre id="source-view" class="artifact-view transcript source-code" role="tabpanel" hidden>Loading shprout...</pre>
+    </section>
+
+    <aside class="inspector" aria-label="Run inspector">
+      <div class="inspector-tabs" role="tablist" aria-label="Inspector views">
+        <button class="inspector-tab active" type="button" role="tab" aria-selected="true" data-panel="activity">
+          <i data-lucide="list-tree"></i><span>Activity</span>
+        </button>
+        <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-panel="workspace">
+          <i data-lucide="files"></i><span>Workspace</span>
+        </button>
+      </div>
+
+      <section id="activity-panel" class="inspector-panel active" role="tabpanel">
+        <div id="activity" class="activity-feed">
+          <div class="activity-empty">
+            <i data-lucide="sparkles" aria-hidden="true"></i>
+            <span>Agent turns will appear here</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="workspace-panel" class="inspector-panel browser-panel" role="tabpanel" hidden>
+        <nav id="workspace-list" class="item-list" aria-label="Virtual workspace"></nav>
+        <div class="editor">
+          <div class="editor-toolbar">
+            <span id="workspace-name">.shprout/SOUL.md</span>
+            <div class="editor-actions">
+              <label class="heartbeat-toggle" title="Include HEARTBEAT.md in each agent turn">
+                <input id="heartbeat-enabled" type="checkbox">
+                <span aria-hidden="true"></span>
+                <em>heartbeat</em>
+              </label>
+              <button id="save-workspace" class="icon-button quiet" type="button" title="Save file" aria-label="Save file" disabled>
+                <i data-lucide="save"></i>
+              </button>
+            </div>
+          </div>
+          <textarea id="workspace-editor" aria-label="Workspace file content" spellcheck="false" disabled></textarea>
+        </div>
+      </section>
+
+      <footer class="metrics" aria-label="Run metrics">
+        <span><b id="turn-count">0</b> turns</span>
+        <span><b id="file-count">0</b> files</span>
+        <span><b id="changed-count">0</b> changed</span>
+        <span><b id="elapsed">0.0s</b></span>
+      </footer>
+    </aside>
+  </main>
+
+  <script type="module" src="/workshop.js"></script>
+</body>
+</html>
