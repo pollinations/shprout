@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { buildJustBashBundle } from './vendor.js';
 
 const port = Number(process.env.PORT || 8088);
+const justBashBundle = await buildJustBashBundle();
 const routes = new Map([
   ['/', { path: new URL('./index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
   ['/index.html', { path: new URL('./index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
   ['/index.css', { path: new URL('./index.css', import.meta.url), type: 'text/css; charset=utf-8' }],
   ['/index.js', { path: new URL('./index.js', import.meta.url), type: 'text/javascript; charset=utf-8' }],
+  ['/vendor/lucide.js', { path: new URL('../node_modules/lucide/dist/umd/lucide.min.js', import.meta.url), type: 'text/javascript; charset=utf-8' }],
+  ['/vendor/just-bash.js', { body: justBashBundle, type: 'text/javascript; charset=utf-8' }],
   ['/workshop.html', { path: new URL('./workshop.html', import.meta.url), type: 'text/html; charset=utf-8' }],
   ['/workshop.css', { path: new URL('./workshop.css', import.meta.url), type: 'text/css; charset=utf-8' }],
   ['/workshop.js', { path: new URL('./workshop.js', import.meta.url), type: 'text/javascript; charset=utf-8' }],
@@ -34,8 +38,13 @@ createServer(async (request, response) => {
   }
 
   try {
-    response.writeHead(200, { 'Content-Type': route.type, 'Cache-Control': 'no-store' });
-    response.end(await readFile(route.path));
+    response.writeHead(200, {
+      'Content-Type': route.type,
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    response.end(route.body ?? await readFile(route.path));
   } catch (error) {
     response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
     response.end(String(error));

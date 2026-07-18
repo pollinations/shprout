@@ -1,21 +1,4 @@
-import { Bash } from 'https://esm.sh/just-bash@3.1.0/browser?bundle';
-import {
-  createIcons,
-  FileCode2,
-  Files,
-  KeyRound,
-  ListTree,
-  Maximize2,
-  Minimize2,
-  Monitor,
-  Play,
-  RotateCcw,
-  Save,
-  Sparkles,
-  Sprout,
-  Square,
-  Terminal,
-} from 'https://esm.sh/lucide@1.24.0?bundle';
+import { Bash } from '/vendor/just-bash.js';
 import {
   clearAuthSession,
   consumeAuthCallback,
@@ -33,6 +16,23 @@ import {
   workspacePath,
 } from './workshop-runtime.js';
 
+const {
+  createIcons,
+  FileCode2,
+  Files,
+  KeyRound,
+  ListTree,
+  Maximize2,
+  Minimize2,
+  Monitor,
+  Play,
+  RotateCcw,
+  Save,
+  Sparkles,
+  Sprout,
+  Square,
+  Terminal,
+} = globalThis.lucide;
 const icons = {
   FileCode2,
   Files,

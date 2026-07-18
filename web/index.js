@@ -1,4 +1,4 @@
-import {
+const {
   ArrowUpRight,
   createIcons,
   FolderGit2,
@@ -6,7 +6,7 @@ import {
   Play,
   Sprout,
   SquareTerminal,
-} from 'https://esm.sh/lucide@1.24.0?bundle';
+} = globalThis.lucide;
 
 createIcons({
   icons: {

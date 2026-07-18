@@ -1,17 +1,11 @@
 import {
-  createIcons,
-  GitBranch,
-  KeyRound,
-  Play,
-  Square,
-} from 'https://esm.sh/lucide@1.24.0?bundle';
-import {
   clearAuthSession,
   consumeAuthCallback,
   createAuthorizationUrl,
 } from './auth.js';
 import { completeDomproutDemo, runDomprout } from './dom-agent.js';
 
+const { createIcons, GitBranch, KeyRound, Play, Square } = globalThis.lucide;
 createIcons({ icons: { GitBranch, KeyRound, Play, Square } });
 
 const MODEL_STORE = 'domprout.model';
