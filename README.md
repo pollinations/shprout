@@ -43,6 +43,29 @@ Pollinations can provide the defaults and authentication:
 
 Local runs need bash, `jq`, and `curl`. They execute model output with `eval`; use the sandbox launcher or another isolated environment for untrusted tasks.
 
+## Browser terminal: the Bash script is the agent
+
+```bash
+npm install
+npm run dev
+```
+
+Open [the browser Bash terminal](http://localhost:8088/shell.html). The default
+runs the repository’s `shprout` unchanged: it reads its own source into the
+prompt and runs the model’s fenced Bash actions. The source is visible and
+editable below the terminal. Generating it from a compressed prompt is optional.
+
+GNU Bash and Linux programs execute **inside the browser** through CheerpX
+WebAssembly, with an xterm.js terminal and a persistent browser filesystem.
+There is no shell process on the serving machine. The lightweight `just-bash`
+option runs the same script with a smaller supported command set.
+
+Pollinations consent uses the existing browser auth flow without a client ID.
+A small `curl` transport forwards only model requests to the page; credentials
+stay outside the Linux guest. The current VM does not support `/dev/fd` process
+substitution or unrestricted networking. See [runtime notes](docs/browser-shell.md)
+for verified behavior, hosting headers, and runtime dependencies.
+
 ## Run in a browser
 
 ```bash

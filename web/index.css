@@ -100,3 +100,12 @@ main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 24
   .directory-footer span { padding-left: 8px; }
   .directory-footer span:last-child { display: none; }
 }
+
+.seed-preview { background: #17201a; }
+.seed-preview .preview-bar { color: #c4cec7; }
+.seed-scene { display: grid; gap: 14px; padding: 22px 18px 26px; }
+.seed-sentence { margin: 0; color: #e7c77a; font: 11px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.seed-spine { display: flex; align-items: center; gap: 8px; color: #86d3a3; font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
+.seed-spine i { flex: 1; height: 1px; background: #3a4a3f; }
+.seed-preview .preview-label { border-color: #6b5a2a; background: #2a2416; color: #e7c77a; }
+.experiment-icon.seed { background: #f1e6c8; color: #6b5210; }

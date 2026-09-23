@@ -103,7 +103,7 @@ export function createApiBridge({ apiKey, fetchImpl = globalThis.fetch, onEvent 
         url: response.url || url,
       };
     } catch (error) {
-      if (error?.name !== 'AbortError') {
+      if (error?.name !== 'AbortError' && !controller.signal.aborted) {
         onEvent({ type: 'error', message: `Request failed: ${error?.message || error}` });
       }
       throw error;
@@ -115,7 +115,7 @@ export function createApiBridge({ apiKey, fetchImpl = globalThis.fetch, onEvent 
   return {
     fetch,
     abort() {
-      for (const controller of controllers) controller.abort('stopped');
+      for (const controller of controllers) controller.abort();
       controllers.clear();
     },
   };

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>shprout · DOM REPL</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/seed.css">
+  <link rel="stylesheet" href="/repl.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand-home" href="/"><strong>shprout</strong></a>
+    <nav class="repl-nav" aria-label="Agent versions"><a href="/">Bash agent</a><a href="/repl.html" aria-current="page">DOM REPL</a><a href="/repl-versions.html">Three versions</a></nav>
+    <button id="auth" class="button secondary" type="button">Authorize</button>
+  </header>
+  <main class="story">
+    <section class="hero">
+      <h1>A page the agent can change.</h1>
+      <p class="lede">Give it an idea. It runs JavaScript, sees the updated DOM and any errors, then makes its next move. Ask for a change and it keeps working on the same page.</p>
+    </section>
+    <form id="task-form" class="io input">
+      <label class="io-tag" for="task">What should it make or change?</label>
+      <textarea id="task" class="seed-text small" rows="3" required>Make a tiny interactive terrarium with a plant and a Water button. Each click grows the plant. Store its water count on state, keep the design compact, and make the button work. Then say done.</textarea>
+      <div class="io-actions">
+        <span id="status" role="status">Ready for an idea</span><span class="spacer"></span>
+        <button id="reset" class="button secondary" type="button">Reset page</button>
+        <button id="stop" class="button danger" type="button" hidden>Stop and reset</button>
+        <button id="run" class="button primary" type="submit">Run task</button>
+      </div>
+      <p id="error" class="banner error" role="alert" hidden></p>
+    </form>
+    <div class="repl-workspace">
+      <section class="repl-page" aria-label="Live page">
+        <h2>The page</h2>
+        <div id="empty" class="repl-empty">Your idea takes shape here.<br>Nothing has run yet.</div>
+        <iframe id="stage" title="Agent-controlled page" sandbox="allow-scripts" referrerpolicy="no-referrer" hidden></iframe>
+      </section>
+      <section class="io output">
+        <div class="io-label"><span class="io-tag">JavaScript REPL</span><span id="calls" class="mono">0 calls</span></div>
+        <div id="transcript" class="transcript" role="log" aria-label="JavaScript cells and results"><p class="tx-empty">The agent’s cells and their results appear here.</p></div>
+      </section>
+    </div>
+    <details class="hood">
+      <summary>How this agent works</summary>
+      <p class="caption">One sequential loop. The DOM and <code>state</code> persist across cells and follow-up tasks. Local <code>let</code> and <code>const</code> variables belong to one cell; use <code>state</code> to keep values, functions, and element references. A reset discards them.</p>
+      <label for="instructions">Agent instructions</label>
+      <textarea id="instructions" class="seed-text small" rows="8" spellcheck="false"></textarea>
+      <details><summary>The actual loop and evaluator sent to the model</summary><pre id="source" class="code raw"></pre></details>
+      <p class="caption">The page lives in an isolated iframe. Your Pollinations key stays in the host page. Runs are limited to 8 model calls and 90 seconds. Stop resets the iframe to discard running code; a successful run keeps it alive for interaction.</p>
+    </details>
+    <footer class="story-footer"><span>JavaScript runs here · Models run at Pollinations</span><a href="/experiments.html">All approaches</a></footer>
+  </main>
+  <script type="module" src="/repl.js"></script>
+</body>
+</html>

@@ -1,4 +1,7 @@
-export const APP_KEY = 'pk_xMe0kHLHGca6k7lf';
+// Pollinations BYOP fragment flow without a registered app: the page sends the
+// person to enter.pollinations.ai with only a redirect_uri and a state; they
+// come back with #api_key=sk_… in the URL fragment. The key lives in
+// sessionStorage and is read by the API bridge; the shell never sees it.
 export const AUTH_URL = 'https://enter.pollinations.ai/authorize';
 export const KEY_STORE = 'shprout.apiKey';
 export const STATE_STORE = 'shprout.oauthState';
@@ -43,11 +46,9 @@ export function createAuthorizationUrl({
   redirectUrl,
   session = globalThis.sessionStorage,
   state = globalThis.crypto.randomUUID(),
-  appKey = APP_KEY,
 } = {}) {
   session.setItem(STATE_STORE, state);
   const url = new URL(AUTH_URL);
-  url.searchParams.set('client_id', appKey);
   url.searchParams.set('redirect_uri', redirectUrl);
   url.searchParams.set('state', state);
   return url.toString();

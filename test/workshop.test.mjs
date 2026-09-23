@@ -62,6 +62,21 @@ test('the API bridge rejects successful replies without model content', async ()
   assert.equal(events[1].type, 'error');
 });
 
+test('aborting the API bridge mid-request is not reported as a failed request', async () => {
+  const events = [];
+  const bridge = createApiBridge({
+    apiKey: 'sk_test',
+    fetchImpl: (url, { signal }) => new Promise((resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason ?? new DOMException('Aborted', 'AbortError')));
+    }),
+    onEvent: event => events.push(event),
+  });
+  const pending = bridge.fetch(POLLI_ENDPOINT, { method: 'POST', body: '{}' });
+  bridge.abort();
+  await assert.rejects(pending, error => error?.name === 'AbortError');
+  assert.deepEqual(events.map(event => event.type), ['request']);
+});
+
 test('demo drives the real shell loop and leaves a verified artifact and state', async () => {
   const events = [];
   const bridge = createDemoBridge({ delayMs: 0, onEvent: event => events.push(event) });

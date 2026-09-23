@@ -52,7 +52,7 @@ const icons = {
 createIcons({ icons });
 
 const MODEL = 'claude-large';
-const RUNTIME = 'just-bash 3.1.0 in a browser; persistent virtual files; built-in shell commands only; no Node, npm, Python, native binaries, or unrestricted network';
+const RUNTIME = 'just-bash 3.4.2 in a browser; persistent virtual files; built-in shell commands only; no Node, npm, Python, native binaries, or unrestricted network';
 const STATE_FILES = [
   { name: 'SOUL', detail: 'voice' },
   { name: 'GOAL', detail: 'objective' },
@@ -94,6 +94,7 @@ const elapsedEl = $('#elapsed');
 const auth = consumeAuthCallback();
 if (auth.cleanedUrl) history.replaceState(null, '', auth.cleanedUrl);
 let apiKey = auth.apiKey;
+if (auth.error) addError(`Authorization failed: ${auth.error}`);
 let source;
 let bash;
 let bridge;
@@ -151,7 +152,6 @@ for (const tab of document.querySelectorAll('.inspector-tab')) {
 expandEl.addEventListener('click', toggleExpanded);
 
 await boot();
-if (auth.error) addError(`Authorization failed: ${auth.error}`);
 
 async function boot() {
   setStatus('loading shell', 'booting');

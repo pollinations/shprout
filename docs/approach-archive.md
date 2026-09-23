@@ -1,5 +1,10 @@
 # Shprout approach archive
 
+Update: `/shell.html` now adds a browser-only GNU Bash/WebAssembly environment
+for the unchanged canonical script. The earlier consolidation below describes
+the just-bash baseline; see [Browser shell](browser-shell.md) for the new runtime
+and its compatibility limits.
+
 This document preserves the useful ideas from the experimental branches while
 the project converges on one browser shell runtime: just-bash. Distinct
 shell-agent profiles remain runnable because they test materially different
