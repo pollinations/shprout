@@ -1,20 +1,33 @@
 #!/bin/bash
 # shprout
-# You speak bash. You hear stdout. Think in `# comments`, then write the next command.
+# You think out loud. Put bash in a ```bash fence to run it. No fence = you're done.
+# Each turn you see this source, the runtime, task, log, and optional state from
+# .shprout/{SOUL,GOAL,RECENT}.md. HEARTBEAT.md is opt-in via SHPROUT_HEARTBEAT=1.
 : "${OPENAI_API_KEY:?}" "${MODEL:?}" "${OPENAI_BASE_URL:?}"   # vessel
 
-p="<you>$(<"$0")</you>"$'\n<task>'"$1"$'</task>\n#log\n'
+task=$1 history= state=${SHPROUT_HOME:-.shprout}
 
 for i in {1..20}; do                              # heartbeat
-  cmd=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p" \
-    | curl -sSd @- -H "Authorization: Bearer $OPENAI_API_KEY" \
-      -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
-    | jq -r .choices[0].message.content)        # think
+  context=
+  for spec in SOUL:soul GOAL:goal RECENT:recent; do
+    file="$state/${spec%%:*}.md" tag=${spec#*:}
+    [[ -s $file ]] && context+="<$tag>$(<"$file")</$tag>"$'\n'
+  done
+  file="$state/HEARTBEAT.md"
+  [[ ${SHPROUT_HEARTBEAT:-0} == 1 && -s $file ]] && context+="<heartbeat>$(<"$file")</heartbeat>"$'\n'
 
+  p="<you>$(<"$0")</you>"$'\n<runtime>'"${SHPROUT_RUNTIME:-real bash; cwd=$PWD}"$'</runtime>\n'\
+"$context<task>$task</task>"$'\n#log\n'"$history"
+  body=$(jq -Rs "{model:\"$MODEL\",messages:[{role:\"user\",content:.}]}" <<<"$p")
+  rsp=$(curl -sS -d "$body" -H "Authorization: Bearer $OPENAI_API_KEY" \
+      -H 'Content-Type: application/json' "$OPENAI_BASE_URL/chat/completions" \
+    | jq -er '.choices[0].message.content|strings') || { echo 'shprout: model request failed' >&2; exit 1; }  # think
+
+  sed 's/^/> /' <<<"$rsp"                       # speak
+  cmd=$(awk '/^```/{if(f)exit;f=1;next} f' <<<"$rsp")  # unfence
   [[ -z $cmd || $cmd == exit ]] && break        # done?
 
-  printf '\n$ %s\n' "$cmd"                      # speak
   out=$(eval "$cmd" </dev/null 2>&1); printf '%s\n' "$out"  # act, and hear
 
-  p+=$'\n# > '$cmd$'\n'$out                     # remember
+  history+=$'\n--- you ---\n'$rsp$'\n--- bash ---\n'$out  # remember
 done

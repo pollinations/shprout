@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>shprout — a shell that knows itself</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/vendor/xterm.css"><link rel="stylesheet" href="/shell.css"></head>
+<body>
+<header><a href="/shell.html" class="brand">shprout<span> / bash</span></a><span id="status" role="status">Starting the browser shell…</span><button id="auth">Authorize</button></header>
+<main>
+<div class="intro"><h1>A shell that knows itself.</h1><p>The Bash script reads its own source, sends it to the model, runs the reply, and remembers the output. That is the agent.</p></div>
+<div class="model-picker"><label for="model">Model</label><input id="model" list="models" value="claude-large" required autocomplete="off" spellcheck="false" aria-describedby="model-note"><datalist id="models"></datalist><small id="model-note">Used to generate the script and run the agent. Choose a model or type its ID.</small></div>
+<section id="compression" class="step" aria-labelledby="seed-title">
+<div class="step-heading"><h2 id="seed-title"><span>01</span> Compressed prompt</h2><span id="seed-size" class="bytes"></span></div>
+<p class="step-intro">Describe the agent. Generate its Bash source, or skip generation and choose a saved script below.</p>
+<div class="preset-row"><label for="seed-preset">Prompt preset</label><select id="seed-preset"></select></div>
+<p id="seed-note" class="preset-note"></p>
+<textarea id="seed" rows="4" aria-label="Compressed agent prompt" spellcheck="false"></textarea>
+<div class="step-foot"><small id="seed-origin"></small><button id="grow" disabled>Generate agent ↓</button></div>
+</section>
+<section id="agent" class="step" aria-labelledby="agent-title">
+<div class="step-heading"><h2 id="agent-title"><span>02</span> Uncompressed agent</h2><span id="source-size" class="bytes"></span></div>
+<p class="step-intro">This is the whole agent: a Bash script that includes its own source in the model’s prompt.</p>
+<div class="preset-row"><label for="source-preset">Script preset</label><select id="source-preset"></select></div>
+<p id="source-note" class="preset-note"></p>
+<textarea id="source" spellcheck="false" rows="11" aria-label="The Bash agent source"></textarea>
+<div class="step-foot"><small id="source-origin"></small><button id="download" type="button">Download script</button></div>
+<p id="source-lineage" class="lineage" role="status"></p>
+</section>
+<form id="task-form" class="step" aria-labelledby="task-title">
+<div class="step-heading"><h2 id="task-title"><span>03</span> Prompt to the agent</h2></div>
+<p class="step-intro">Give that script a job. It runs as <code>bash ~/shprout "your task"</code> inside this browser.</p>
+<div class="preset-row"><label for="task-preset">Task preset</label><select id="task-preset"></select></div>
+<p id="task-note" class="preset-note"></p>
+<label class="sr-only" for="task">Your task for the agent</label>
+<div class="composer"><textarea id="task" rows="3"></textarea><button id="run" type="submit" disabled>Run shprout</button><button id="stop" type="button" hidden>Stop</button></div>
+<div class="step-foot"><small id="task-origin"></small></div>
+</form>
+<p id="error" role="alert" hidden></p>
+<section class="terminal-wrap" aria-label="Browser Bash terminal"><div class="terminal-bar"><strong>Output</strong><label for="runtime">Shell</label><select id="runtime"><option value="linux">GNU Bash · WebAssembly Linux</option><option value="lite">just-bash · lightweight subset</option></select><span id="calls">0 model calls</span><button id="reset" type="button">Restart shell</button></div><div id="terminal"></div></section>
+<details id="inspector"><summary>Inspect model prompt</summary>
+<p>The latest request, exactly as assembled by the agent. This includes whatever history the script sends. During generation, it shows the compressed prompt instead.</p>
+<pre id="model-prompt">No model request yet.</pre>
+</details>
+<footer><strong>Shell execution stays in this browser.</strong> Model inference uses Pollinations. Browser Linux loads a Debian image; its curl transport is restricted to model requests. <a href="/repl-versions.html">DOM experiments</a> · <a href="/shell-runtime-notes.html">Runtime details</a></footer>
+</main>
+<script src="/vendor/xterm.js"></script><script src="/vendor/xterm-fit.js"></script><script type="module" src="/shell.js"></script>
+</body></html>

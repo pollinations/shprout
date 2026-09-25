@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>shprout experiments</title>
+  <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <header class="directory-header">
+    <a class="brand" href="/" aria-current="page">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="sprout"></i></span>
+      <strong>shprout</strong>
+    </a>
+    <span class="directory-status"><span aria-hidden="true"></span>4 active</span>
+  </header>
+
+  <main>
+    <div class="title-row">
+      <div>
+        <p>LAB DIRECTORY</p>
+        <h1>Experiments</h1>
+      </div>
+      <a class="archive-link" href="https://github.com/pollinations/shprout" target="_blank" rel="noreferrer" title="Repository">
+        <i data-lucide="folder-git-2"></i><span>Repository</span>
+      </a>
+    </div>
+
+    <section class="experiment-grid" aria-label="Active web experiments">
+      <article class="experiment-card">
+        <div class="experiment-preview shell-preview">
+          <div class="preview-bar"><span>DOM REPL</span><small>persistent page</small></div>
+          <pre aria-hidden="true">state.count = 0;
+stage.innerHTML = '&lt;button&gt;Grow&lt;/button&gt;';
+stage.firstChild.onclick = () =&gt; {
+  stage.firstChild.textContent = ++state.count;
+};
+console.log(stage.outerHTML);</pre>
+          <a href="/repl-versions.html" aria-label="Open DOM REPL"></a>
+        </div>
+        <div class="experiment-info">
+          <div class="experiment-name"><div><h2>DOM REPL</h2><p>The agent changes a live page with JavaScript cells. DOM, state and interactions persist between tasks.</p></div></div>
+          <div class="experiment-actions"><a class="button primary" href="/repl-versions.html">Open</a></div>
+        </div>
+      </article>
+      <article class="experiment-card">
+        <div class="experiment-preview seed-preview">
+          <div class="preview-bar"><span>seed</span><small>388 B</small></div>
+          <div class="seed-scene" aria-hidden="true">
+            <p class="seed-sentence">Bash self-prompting agent. Env: OPENAI_API_KEY MODEL OPENAI_BASE_URL. prompt=$(&lt;$0)+task $1. Loop ≤20: curl POST …</p>
+            <div class="seed-spine"><span>388 B</span><i></i><span>1,896 B</span><i></i><span>checks 12/12</span><i></i><span>run ✓</span></div>
+          </div>
+          <a href="/seed.html" aria-label="Open seed"></a>
+          <span class="preview-label">two layers</span>
+        </div>
+        <div class="experiment-info">
+          <div class="experiment-name">
+            <span class="experiment-icon seed"><i data-lucide="package-open"></i></span>
+            <div>
+              <h2>Seed</h2>
+              <p>One sentence in, a working agent out. A model writes the bash from a 388-byte description and your tab runs it.</p>
+            </div>
+          </div>
+          <div class="experiment-actions">
+            <a class="button primary" href="/seed.html"><span>Open</span><i data-lucide="arrow-up-right"></i></a>
+          </div>
+        </div>
+      </article>
+      <article class="experiment-card">
+        <div class="experiment-preview shell-preview">
+          <div class="preview-bar"><span>shprout</span><small>33 lines</small></div>
+          <pre aria-hidden="true"><span>p=</span>"&lt;you&gt;$(source)&lt;/you&gt; ..."
+<span>body=</span>$(jq -Rs '{model,messages}' &lt;&lt;&lt;"$p")
+<span>rsp=</span>$(curl ... | jq -r .choices[0]...)
+<span>cmd=</span>$(awk '/^```/{...}' &lt;&lt;&lt;"$rsp")
+<span>out=</span>$(eval "$cmd")
+<span>history+=</span>"$rsp $out"</pre>
+          <a href="/workshop.html" aria-label="Open shell workshop"></a>
+          <span class="preview-label">source loop</span>
+        </div>
+        <div class="experiment-info">
+          <div class="experiment-name">
+            <span class="experiment-icon shell"><i data-lucide="terminal-square"></i></span>
+            <div>
+              <h2>Shell workshop</h2>
+              <p>just-bash / files / state</p>
+            </div>
+          </div>
+          <div class="experiment-actions">
+            <a class="button secondary" href="/workshop.html?demo=1"><i data-lucide="play"></i><span>Demo</span></a>
+            <a class="button primary" href="/workshop.html"><span>Open</span><i data-lucide="arrow-up-right"></i></a>
+          </div>
+        </div>
+      </article>
+
+      <article class="experiment-card">
+        <div class="experiment-preview dom-preview">
+          <div class="preview-bar"><span>DOM stage</span><small>4 branches</small></div>
+          <div class="dom-scene" aria-hidden="true">
+            <div class="dom-title"><b>Parallel DOM work</b><span>0</span></div>
+            <div class="dom-panels">
+              <div><small>0.0</small><strong>Plan</strong><span>Nested branch complete</span><em>0.0.0</em></div>
+              <div><small>0.1</small><strong>Verify</strong><span>Sibling branch complete</span><em>OK</em></div>
+            </div>
+          </div>
+          <a href="/domprout.html" aria-label="Open DOM lab"></a>
+          <span class="preview-label">parallel DOM</span>
+        </div>
+        <div class="experiment-info">
+          <div class="experiment-name">
+            <span class="experiment-icon dom"><i data-lucide="git-branch"></i></span>
+            <div>
+              <h2>DOM recursion lab</h2>
+              <p>sandbox / fan-out / repair</p>
+            </div>
+          </div>
+          <div class="experiment-actions">
+            <a class="button secondary" href="/domprout.html?demo=1"><i data-lucide="play"></i><span>Demo</span></a>
+            <a class="button primary" href="/domprout.html"><span>Open</span><i data-lucide="arrow-up-right"></i></a>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer class="directory-footer">
+      <span>one shell runtime</span>
+      <span>four agent surfaces</span>
+      <span>two compression layers</span>
+      <span>five archived lineages</span>
+    </footer>
+  </main>
+
+  <script src="/vendor/lucide.js"></script>
+  <script type="module" src="/index.js"></script>
+</body>
+</html>

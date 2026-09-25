@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>domprout lab</title>
+  <link rel="stylesheet" href="/domprout.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <a class="brand-home" href="/" aria-label="All experiments">
+        <span class="brand-mark" aria-hidden="true"><i data-lucide="git-branch"></i></span>
+        <strong>domprout</strong>
+      </a>
+      <nav aria-label="Experiments">
+        <a href="/workshop.html">Workshop</a>
+        <a href="/domprout.html" aria-current="page">DOM lab</a>
+        <a href="/seed.html">Seed</a>
+      </nav>
+    </div>
+    <span id="status" class="status" data-kind="booting">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="status-label">starting</span>
+    </span>
+  </header>
+
+  <form id="controls" class="controls">
+    <label class="model-field">
+      <span>Model</span>
+      <input id="model" aria-label="Model" value="claude-large" disabled>
+    </label>
+    <label class="task-field">
+      <span>Task</span>
+      <input id="task" aria-label="Task" placeholder="Build or repair the stage" autocomplete="off" disabled>
+    </label>
+    <button id="run" class="button primary" type="submit" disabled>
+      <i data-lucide="play"></i><span>Run</span>
+    </button>
+    <button id="stop" class="button danger" type="button" disabled hidden>
+      <i data-lucide="square"></i><span>Stop</span>
+    </button>
+    <button id="auth" class="button secondary" type="button">
+      <i data-lucide="key-round"></i><span>Authorize</span>
+    </button>
+  </form>
+
+  <main id="workspace">
+    <iframe id="stage" title="DOM agent stage" sandbox="allow-scripts"></iframe>
+    <aside class="trace" aria-label="Agent execution trace">
+      <div class="trace-header">
+        <span>Execution tree</span>
+        <output id="step-count">0 steps</output>
+      </div>
+      <section id="log" aria-live="polite"></section>
+    </aside>
+  </main>
+
+  <script src="/vendor/lucide.js"></script>
+  <script type="module" src="/domprout.js"></script>
+</body>
+</html>

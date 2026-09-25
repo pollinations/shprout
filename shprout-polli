@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pollinations defaults + optional sandbox. First run triggers device login.
+# Pollinations defaults + optional sandbox/profile. First run triggers device login.
 set -eu
 
 s=$0; while [[ -L $s ]]; do s=$(readlink "$s"); [[ $s != /* ]] && s=$(dirname "$0")/$s; done
@@ -46,10 +46,19 @@ else
   key=$(login)
 fi
 
+agent="$d/shprout"
 sandbox=""
-[[ ${1:-} == --sandbox ]] && { sandbox="$d/sandbox.sh"; shift; }
+while :; do
+  case ${1:-} in
+    --lisp) agent="$d/approaches/lisp"; shift ;;
+    --sandbox) sandbox="$d/sandbox.sh"; shift ;;
+    *) break ;;
+  esac
+done
 
-OPENAI_API_KEY=$key \
-MODEL=${MODEL:-openai-fast} \
-OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://gen.pollinations.ai/v1} \
-exec $sandbox "$d/shprout" "$@"
+export OPENAI_API_KEY=$key
+export MODEL=${MODEL:-claude-large}
+export OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://gen.pollinations.ai/v1}
+if [[ -n $sandbox ]]; then exec "$sandbox" "$agent" "$@"
+else exec "$agent" "$@"
+fi

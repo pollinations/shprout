@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>shprout · Grow an agent from a prompt</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/seed.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <a class="brand-home" href="/" aria-label="shprout home">
+        <span class="brand-mark" aria-hidden="true"><i data-lucide="sprout"></i></span>
+        <strong>shprout</strong>
+      </a>
+    </div>
+    <a class="brand-home" href="/repl-versions.html">Try the DOM REPL</a>
+    <div class="header-actions">
+      <span id="status" class="status" data-kind="booting">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="status-label">loading shell</span>
+      </span>
+      <button id="auth" class="button secondary" type="button">
+        <i data-lucide="key-round"></i>
+        <span>Authorize</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="story">
+    <section class="hero">
+      <h1>A prompt becomes a Bash agent.</h1>
+      <p class="lede">Describe an agent, give it a task, and watch it run. A model writes the Bash script; the script calls the model, executes its commands, and feeds back the output.</p>
+      <p id="notice" class="banner error" role="alert" hidden></p>
+    </section>
+
+    <section id="stage-seed" class="io input" data-state="idle">
+      <div class="io-label">
+        <span class="io-tag">Describe the agent</span>
+        <span id="seed-bytes" class="mono"></span>
+      </div>
+      <label class="sr-only" for="seed">Describe the agent</label>
+      <textarea id="seed" class="seed-text" spellcheck="false" rows="4" placeholder="Describe the agent in one sentence."></textarea>
+      <div id="task-custom-wrap" hidden>
+        <div class="io-label"><span class="io-tag">The task</span><span class="caption">what the agent should do, in your words</span></div>
+        <label class="sr-only" for="task-custom">Your task for the agent</label>
+        <textarea id="task-custom" class="seed-text small" rows="2" spellcheck="false" placeholder="Tell the agent what to do. End with “Then say exit.” so it knows when it is done."></textarea>
+        <p id="task-hint" class="io-hint"></p>
+        <p id="task-note" class="io-hint warn" hidden></p>
+      </div>
+      <div class="io-actions">
+        <label class="field">
+          <span>Give it a task</span>
+          <select id="task" aria-label="Task"></select>
+        </label>
+        <span class="spacer"></span>
+        <button id="grow" class="button primary big" type="button" disabled>
+          <i data-lucide="sprout"></i><span>Grow it and run it</span>
+        </button>
+      </div>
+    </section>
+
+    <section id="stage-run" class="io output" data-state="idle">
+      <div class="io-label">
+        <span class="io-tag">How it works</span>
+        <span id="run-meta" class="mono">waiting</span>
+        <button id="stop" class="button danger small" type="button" hidden>
+          <i data-lucide="square"></i><span>Stop</span>
+        </button>
+      </div>
+      <div id="transcript" class="transcript" aria-live="polite">
+        <p class="tx-empty">The generated Bash script, its model replies, and the shell’s answers appear here when you run it.</p>
+      </div>
+    </section>
+
+    <section id="receipt" class="punch" hidden>
+      <p id="receipt-line" class="punch-line"></p>
+      <p id="receipt-sub" class="caption"></p>
+      <div class="io-actions">
+        <button id="copy-link" class="button secondary" type="button"><i data-lucide="link"></i><span>Copy setup link</span></button>
+        <button id="download-agent" class="button secondary" type="button">Download agent.sh</button>
+        <button id="copy-card" class="button secondary" type="button"><i data-lucide="clipboard"></i><span>Copy summary</span></button>
+        <button id="another-task" class="button secondary" type="button">Try another task</button>
+        <button id="regrow-2" class="button secondary" type="button" hidden>Grow it again</button>
+      </div>
+    </section>
+
+    <details id="hood" class="hood">
+      <summary>Under the hood</summary>
+      <p class="caption hood-intro">The lab: the script the model wrote, the 12 checks it passes before it may run, what it sends the model each turn, other sentences from the search for the shortest one, and switches to break it on purpose.</p>
+
+      <section id="stage-code" class="stage" data-state="idle">
+        <header class="stage-head">
+          <h2>The script it wrote</h2>
+          <span id="code-meta" class="stage-meta">nothing yet</span>
+        </header>
+        <label class="sr-only" for="code">Grown agent source</label>
+        <textarea id="code" class="code" spellcheck="false" placeholder="The script appears here once it is grown." disabled></textarea>
+        <pre id="raw" class="code raw" hidden></pre>
+        <p id="code-info" class="meta-line"></p>
+        <ol id="attempts" class="attempts" aria-label="Grow attempts"></ol>
+        <div class="stage-actions wrap">
+          <span class="caption">break it on purpose</span>
+          <div id="sabotage" class="chips small" role="group" aria-label="Sabotage the script"></div>
+          <span class="spacer"></span>
+          <button id="raw-toggle" class="button secondary" type="button" hidden>Raw reply</button>
+          <button id="revert" class="button secondary" type="button" hidden>Revert</button>
+          <button id="gate-again" class="button secondary" type="button" disabled>Check again</button>
+          <button id="regrow" class="button secondary" type="button" hidden>Grow again</button>
+        </div>
+        <pre id="sabotage-diff" class="diff" hidden></pre>
+      </section>
+
+      <section id="stage-gate" class="stage" data-state="idle">
+        <header class="stage-head">
+          <h2>The 12 checks</h2>
+          <span id="gate-meta" class="stage-meta">run before every run</span>
+        </header>
+        <p class="caption">A scripted stand-in for the model feeds the script three replies whose values it has to compute and remember. Only a script that really runs the code, keeps its history and stops on exit gets through. No network is involved.</p>
+        <div class="gate-grid">
+          <div>
+            <h3>reads like an agent</h3>
+            <ul id="gate-tier0" class="gate-rows"></ul>
+          </div>
+          <div>
+            <h3>behaves like one</h3>
+            <ul id="gate-tier1" class="gate-rows"></ul>
+          </div>
+        </div>
+        <div id="gate-stamp" class="stamp" hidden></div>
+        <p id="gate-caption" class="caption" hidden></p>
+        <div id="gate-boundary" class="boundary" hidden>
+          <p>No candidate passed in three attempts. Edit the prompt or inspect the failed checks before trying again.</p>
+          <div class="stage-actions">
+            <button id="try-again" class="button secondary" type="button">Try again</button>
+            <button id="load-archived" class="button secondary" type="button">Use the archived script instead</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="lab-turns" class="stage" data-state="idle">
+        <header class="stage-head">
+          <h2>What it sends the model</h2>
+          <span id="lanes-meta" class="stage-meta">after a run</span>
+        </header>
+        <p class="caption">Every turn the script sends the model one growing prompt: its own source, the task, and everything said and printed so far. Swap what it sees about itself and run again.</p>
+        <div class="run-controls">
+          <fieldset id="self-image" class="segmented">
+            <legend>it sees</legend>
+            <label><input type="radio" name="self" value="code" checked><span>its code</span></label>
+            <label><input type="radio" name="self" value="seed"><span>the sentence</span></label>
+            <label><input type="radio" name="self" value="none"><span>nothing</span></label>
+          </fieldset>
+          <span id="self-note" class="caption"></span>
+          <span class="spacer"></span>
+          <button id="run" class="button secondary" type="button" disabled><i data-lucide="play"></i><span>Run again</span></button>
+          <button id="run-both" class="button secondary" type="button" disabled>Run code vs sentence</button>
+        </div>
+        <p id="task-text" class="task-text"></p>
+        <div id="lanes" class="lanes"></div>
+        <p id="compare-verdict" class="verdict" hidden></p>
+      </section>
+
+      <section id="lab-seeds" class="stage" data-state="idle">
+        <header class="stage-head">
+          <h2>Shorter and longer sentences</h2>
+          <span id="seed-meta" class="stage-meta">388 B</span>
+        </header>
+        <p class="caption">Sentences from the search for the shortest one that still grows a working agent, plus the hand-written original for comparison. Pick one and grow it.</p>
+        <div id="seed-chips" class="chips" role="group" aria-label="Archived sentences"></div>
+        <div id="floor" class="floor" aria-label="Shortest passing sentence in this session">
+          <div id="floor-scale" class="floor-scale"></div>
+          <span id="floor-label" class="caption">no results yet in this session</span>
+        </div>
+      </section>
+    </details>
+
+    <footer class="story-footer">
+      <span>Bash runs in this tab · Models run at Pollinations</span>
+      <a href="/experiments.html">Explore the other approaches</a>
+    </footer>
+  </main>
+
+  <script src="/vendor/lucide.js"></script>
+  <script type="module" src="/seed.js"></script>
+</body>
+</html>
